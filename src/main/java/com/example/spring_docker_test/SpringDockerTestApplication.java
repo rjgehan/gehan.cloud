@@ -15,6 +15,6 @@ public class SpringDockerTestApplication {
 
     @GetMapping("/")
     public String home() {
-        return "Hello from Docker + GitHub!";
+        return "Hello from Docker , IT WORKED";
     }
 }
