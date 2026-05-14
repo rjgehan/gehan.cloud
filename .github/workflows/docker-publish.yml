@@ -28,4 +28,4 @@ jobs:
         with:
           context: .
           push: true
-          tags: ghcr.io/rgehan27/spring-docker-test:latest
+          tags: ghcr.io/rgehan27/gehan.cloud:latest
