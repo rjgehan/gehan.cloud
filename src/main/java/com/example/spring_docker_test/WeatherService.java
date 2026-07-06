@@ -24,12 +24,17 @@ public class WeatherService {
     private static final long CACHE_TTL_SECONDS = 600;
     private static final DateTimeFormatter NOAA_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
+    private static final long RADAR_CACHE_TTL_SECONDS = 300;
+
     private final RestClient forecastClient = RestClient.create("https://api.open-meteo.com");
     private final RestClient marineClient = RestClient.create("https://marine-api.open-meteo.com");
     private final RestClient noaaClient = RestClient.create("https://api.tidesandcurrents.noaa.gov");
+    private final RestClient rainviewerClient = RestClient.create("https://api.rainviewer.com");
 
     private volatile WeatherSnapshot cached;
     private volatile Instant cachedAt = Instant.EPOCH;
+    private volatile String cachedRadarJson;
+    private volatile Instant radarCachedAt = Instant.EPOCH;
 
     public synchronized WeatherSnapshot snapshot() {
         if (cached != null && Instant.now().getEpochSecond() - cachedAt.getEpochSecond() < CACHE_TTL_SECONDS) {
@@ -38,6 +43,25 @@ public class WeatherService {
         cached = fetch();
         cachedAt = Instant.now();
         return cached;
+    }
+
+    public synchronized String radarFrames() {
+        if (cachedRadarJson != null && Instant.now().getEpochSecond() - radarCachedAt.getEpochSecond() < RADAR_CACHE_TTL_SECONDS) {
+            return cachedRadarJson;
+        }
+        try {
+            String json = rainviewerClient.get()
+                    .uri("/public/weather-maps.json")
+                    .retrieve()
+                    .body(String.class);
+            if (json != null) {
+                cachedRadarJson = json;
+                radarCachedAt = Instant.now();
+            }
+        } catch (RuntimeException e) {
+            // serve the last-known-good frames (if any) rather than fail the whole radar card
+        }
+        return cachedRadarJson == null ? "{}" : cachedRadarJson;
     }
 
     private WeatherSnapshot fetch() {

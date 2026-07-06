@@ -1,5 +1,6 @@
 package com.example.spring_docker_test;
 
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -15,5 +16,10 @@ public class WeatherController {
     @GetMapping("/api/weather")
     public WeatherService.WeatherSnapshot weather() {
         return weatherService.snapshot();
+    }
+
+    @GetMapping(value = "/api/radar/frames", produces = MediaType.APPLICATION_JSON_VALUE)
+    public String radarFrames() {
+        return weatherService.radarFrames();
     }
 }

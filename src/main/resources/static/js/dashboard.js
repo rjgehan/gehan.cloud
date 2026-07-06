@@ -97,7 +97,7 @@
             });
         }
 
-        fetch("https://api.rainviewer.com/public/weather-maps.json")
+        fetch("/api/radar/frames")
             .then((res) => res.json())
             .then((data) => {
                 radarHost = data.host || radarHost;
