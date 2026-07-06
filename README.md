@@ -1,4 +1,4 @@
-# Beach House Dashboard
+# House Dashboard
 
 A wall-mounted family smart-home dashboard, built as a single Spring Boot application with no frontend framework, no build step, and no JavaScript bundler — just server-rendered HTML, vanilla CSS, and vanilla JS, designed to run unattended on a kiosk tablet 24/7.
 
