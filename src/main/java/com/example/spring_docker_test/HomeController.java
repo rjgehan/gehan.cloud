@@ -221,16 +221,14 @@ public class HomeController {
                         </div>
 
                         <div class="stat-stack">
-                            <div class="stat-card tint-warn" data-target="weather" role="button" tabindex="0">
-                                <span class="stat-icon-badge">%s</span>
-                                <div class="stat-body">
+                            <div class="stat-card stat-card-uv tint-warn" data-target="weather" role="button" tabindex="0">
+                                <div class="stat-card-uv-top">
+                                    <span class="stat-icon-badge">%s</span>
                                     <span class="stat-label">UV Index</span>
-                                    <div class="uv-readout">
-                                        <span class="uv-number" data-wx-uv>&mdash;</span>
-                                        <span class="pill" data-wx-uv-risk>&nbsp;</span>
-                                    </div>
+                                    <span class="uv-number" data-wx-uv>&mdash;</span>
+                                    <span class="stat-aside" data-wx-uv-tip></span>
                                 </div>
-                                <span class="stat-aside" data-wx-uv-tip></span>
+                                <div class="uv-scale mini"><span class="uv-marker" data-wx-uv-marker></span></div>
                             </div>
                             <div class="stat-card tint-accent" data-tide-tile data-target="weather" role="button" tabindex="0" hidden>
                                 <span class="stat-icon-badge">%s</span>
@@ -253,7 +251,6 @@ public class HomeController {
                     </div>
 
                     <div class="wx-chart-card" data-target="weather" role="button" tabindex="0">
-                        <div class="wx-chart-head"><span>Next Hours</span><span class="page-sub" data-wx-updated></span></div>
                         <svg class="wx-chart" data-wx-chart viewBox="0 0 720 160"></svg>
                     </div>
 

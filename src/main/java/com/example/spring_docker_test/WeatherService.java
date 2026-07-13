@@ -78,7 +78,7 @@ public class WeatherService {
                     .uri(b -> b.path("/v1/forecast")
                             .queryParam("latitude", LAT)
                             .queryParam("longitude", LON)
-                            .queryParam("current", "temperature_2m,apparent_temperature,weather_code,uv_index")
+                            .queryParam("current", "temperature_2m,apparent_temperature,weather_code,uv_index,wind_direction_10m")
                             .queryParam("hourly", "temperature_2m,weather_code,precipitation_probability")
                             .queryParam("daily", "weather_code,temperature_2m_max,temperature_2m_min,uv_index_max,sunrise,sunset,precipitation_probability_max")
                             .queryParam("temperature_unit", "fahrenheit")
@@ -167,7 +167,19 @@ public class WeatherService {
                 c.apparentTemperatureF() == null ? (int) Math.round(c.temperatureF()) : (int) Math.round(c.apparentTemperatureF()),
                 label.icon(),
                 label.label(),
-                c.uvIndex() == null ? 0 : (int) Math.round(c.uvIndex()));
+                c.uvIndex() == null ? 0 : (int) Math.round(c.uvIndex()),
+                onshoreWind(c.windDirectionDeg()));
+    }
+
+    /**
+     * Manasquan's coastline runs roughly north-south with the ocean to the east, so a wind
+     * direction with an easterly component (blowing from the ocean toward land) is onshore.
+     */
+    private static Boolean onshoreWind(Integer windDirectionDeg) {
+        if (windDirectionDeg == null) {
+            return null;
+        }
+        return Math.sin(Math.toRadians(windDirectionDeg)) >= 0;
     }
 
     private static int currentHourIndex(List<String> times) {
@@ -262,7 +274,8 @@ public class WeatherService {
             @JsonProperty("temperature_2m") Double temperatureF,
             @JsonProperty("apparent_temperature") Double apparentTemperatureF,
             @JsonProperty("weather_code") Integer weatherCode,
-            @JsonProperty("uv_index") Double uvIndex) {
+            @JsonProperty("uv_index") Double uvIndex,
+            @JsonProperty("wind_direction_10m") Integer windDirectionDeg) {
     }
 
     private record OpenMeteoHourly(
@@ -309,7 +322,7 @@ public class WeatherService {
     }
 
     public record CurrentConditions(
-            int tempF, int feelsLikeF, String icon, String label, int uv) {
+            int tempF, int feelsLikeF, String icon, String label, int uv, Boolean onshoreWind) {
     }
 
     public record HourPoint(String time, int tempF, String icon, int precipChance) {

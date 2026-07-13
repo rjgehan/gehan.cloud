@@ -324,11 +324,11 @@
     }
 
     function uvBucket(uv) {
-        if (uv >= 11) return { label: "Extreme", cls: "pill-bad", tip: "Avoid prolonged sun exposure" };
-        if (uv >= 8) return { label: "Very High", cls: "pill-bad", tip: "SPF 30+, hat & shade" };
-        if (uv >= 6) return { label: "High", cls: "pill-warn", tip: "SPF 30+ recommended" };
-        if (uv >= 3) return { label: "Moderate", cls: "pill-warn", tip: "Use sunscreen" };
-        return { label: "Low", cls: "pill-good", tip: "Minimal sun protection needed" };
+        if (uv >= 11) return { label: "Extreme", cls: "pill-bad", tip: "Avoid sun" };
+        if (uv >= 8) return { label: "Very High", cls: "pill-bad", tip: "Heavy sunblock" };
+        if (uv >= 6) return { label: "High", cls: "pill-warn", tip: "Sunblock needed" };
+        if (uv >= 3) return { label: "Moderate", cls: "pill-warn", tip: "Light sunblock" };
+        return { label: "Low", cls: "pill-good", tip: "No sunblock needed" };
     }
 
     function fmtTime(iso) {
@@ -475,11 +475,6 @@
             setAll("[data-wx-temp]", (el) => { el.textContent = current.tempF; });
             setAll("[data-wx-label]", (el) => { el.textContent = `${current.label} · Feels like ${current.feelsLikeF}°`; });
             setAll("[data-wx-uv]", (el) => { el.textContent = current.uv; });
-            setAll("[data-wx-uv-risk]", (el) => {
-                const bucket = uvBucket(current.uv);
-                el.textContent = bucket.label;
-                el.className = `pill ${bucket.cls}`;
-            });
             setAll("[data-wx-uv-tip]", (el) => {
                 el.textContent = uvBucket(current.uv).tip;
             });
@@ -538,9 +533,8 @@
             el.querySelector("[data-tide-next]").textContent = `${tideLabel(next.type)} till ${fmtTime(next.time)}`;
             const followingEl = el.querySelector("[data-tide-following]");
             if (followingEl) {
-                const following = data.tides[1];
-                followingEl.textContent = following
-                    ? `Then ${tideLabel(following.type).toLowerCase()} till ${fmtTime(following.time)}`
+                followingEl.textContent = current && current.onshoreWind === true ? "Ocean breeze · cool"
+                    : current && current.onshoreWind === false ? "Land breeze · bugs"
                     : "";
             }
         });

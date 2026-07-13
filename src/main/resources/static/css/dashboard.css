@@ -477,8 +477,8 @@ input:focus, select:focus {
     width: 100px;
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    padding: 16px 10px;
+    gap: 8px;
+    padding: 14px 8px;
     border: 1px solid var(--line);
     border-radius: 22px;
     background: var(--surface-soft);
@@ -520,16 +520,16 @@ input:focus, select:focus {
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 5px;
+    gap: 3px;
     width: 100%;
-    min-height: 60px;
+    min-height: 46px;
     border: 0;
     border-radius: 12px;
-    padding: 8px 4px;
+    padding: 6px 4px;
     color: var(--muted);
     background: transparent;
     box-shadow: none;
-    font-size: 0.72rem;
+    font-size: 0.66rem;
     font-weight: 700;
     letter-spacing: 0.01em;
     transition: color 200ms ease;
@@ -544,15 +544,15 @@ input:focus, select:focus {
 .nav-icon-badge {
     display: grid;
     place-items: center;
-    width: 26px;
-    height: 26px;
+    width: 22px;
+    height: 22px;
     border-radius: 50%;
     transition: background 200ms ease;
 }
 
 .nav-item svg {
-    width: 18px;
-    height: 18px;
+    width: 16px;
+    height: 16px;
     stroke: currentColor;
 }
 
@@ -840,7 +840,8 @@ input[type="range"]::-moz-range-thumb {
    ========================================================================== */
 .home-page {
     height: 100%;
-    gap: 14px;
+    gap: 12px;
+    padding-top: 14px;
 }
 
 .home-hero {
@@ -852,7 +853,7 @@ input[type="range"]::-moz-range-thumb {
 }
 
 .home-clock {
-    font-size: clamp(3rem, 8vw, 5.6rem);
+    font-size: clamp(2.4rem, 6vw, 4.2rem);
     font-weight: 700;
     line-height: 1;
     letter-spacing: -0.03em;
@@ -881,7 +882,7 @@ input[type="range"]::-moz-range-thumb {
     display: flex;
     flex-direction: column;
     justify-content: space-between;
-    gap: 18px;
+    gap: 8px;
     padding: 26px 28px;
     border: 1px solid var(--line);
     border-radius: 18px;
@@ -990,12 +991,17 @@ input[type="range"]::-moz-range-thumb {
 
 .daylight-labels {
     display: flex;
+    width: 100%;
     justify-content: space-between;
     max-width: 420px;
-    margin: 0 auto;
+    margin: -12px auto 0;
     color: var(--muted);
     font-size: 0.78rem;
     font-weight: 650;
+}
+
+.daylight-labels span {
+    white-space: nowrap;
 }
 
 /* ---- Stat card stack ---- */
@@ -1016,6 +1022,22 @@ input[type="range"]::-moz-range-thumb {
     background: var(--surface-soft);
     cursor: pointer;
     transition: transform 160ms ease, box-shadow 160ms ease;
+}
+
+.stat-card-uv {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+}
+
+.stat-card-uv-top {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.stat-card-uv .uv-scale.mini {
+    margin: 0;
 }
 
 .stat-card:hover {
@@ -1092,12 +1114,6 @@ input[type="range"]::-moz-range-thumb {
     font-size: 0.78rem;
 }
 
-.uv-readout {
-    display: flex;
-    align-items: baseline;
-    gap: 12px;
-}
-
 .uv-number {
     font-size: 1.7rem;
     font-weight: 780;
@@ -1129,7 +1145,7 @@ input[type="range"]::-moz-range-thumb {
     border: 1px solid var(--line);
     border-radius: 16px;
     background: var(--surface-soft);
-    padding: 18px 22px 8px;
+    padding: 10px 22px 8px;
     cursor: pointer;
     transition: transform 160ms ease, box-shadow 160ms ease;
 }
@@ -1137,14 +1153,6 @@ input[type="range"]::-moz-range-thumb {
 .wx-chart-card:hover {
     transform: translateY(-2px);
     box-shadow: 0 12px 28px rgba(0, 11, 25, 0.22);
-}
-
-.wx-chart-head {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    margin-bottom: 6px;
-    font-weight: 700;
 }
 
 .wx-chart {
@@ -1512,6 +1520,17 @@ input[type="range"]::-moz-range-thumb {
     border-radius: 999px;
     background: var(--ink);
     box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.25);
+}
+
+.uv-scale.mini {
+    height: 5px;
+    margin: 5px 0 0;
+}
+
+.uv-scale.mini .uv-marker {
+    top: -3px;
+    width: 2px;
+    height: 11px;
 }
 
 .detail-card {
@@ -2115,8 +2134,8 @@ input[type="range"]::-moz-range-thumb {
     }
 
     .nav-item {
-        min-height: 56px;
-        font-size: 0.64rem;
+        min-height: 44px;
+        font-size: 0.6rem;
     }
 
     .now-playing {
@@ -2155,7 +2174,7 @@ input[type="range"]::-moz-range-thumb {
     }
 
     .nav-item {
-        min-height: 50px;
+        min-height: 44px;
         padding: 6px 2px;
     }
 
