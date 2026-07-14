@@ -7,7 +7,7 @@ PIN login is already in place; the rest is a from-scratch redesign: a glanceable
 ## What it does
 
 - **Home** — the always-on idle screen. Live clock, current conditions, a sun-position arc that dims after sunset, a UV gauge, next tide, and a rotating "what's on today" ticker. No controls here by design — this screen is meant to be glanced at, not tapped.
-- **Weather** — current conditions, an hourly temperature chart, a 7-day forecast, a UV gauge, sunrise/sunset, and a **live rain radar map** (Leaflet + RainViewer imagery over a dark CARTO basemap), plus marine conditions (water temp, wave height) and tide times pulled from the nearest NOAA station.
+- **Weather** — current conditions, an hourly temperature chart, a 4-day forecast, a UV gauge, sunrise/sunset, and a **live rain radar map with a ~60-minute forecast** (Leaflet + LibreWXR radar/nowcast imagery over a dark CARTO basemap), plus marine conditions (water temp, wave height) and tide times pulled from the nearest NOAA station.
 - **Lights, Climate, Security, Media, Calendar** — full control UIs (toggles, sliders, a wind-style compass, scene buttons, an agenda list) that don't call anything yet. They're built to be wired to a Home Assistant API without needing a redesign.
 - **Theme** — eight color themes (Dusk, Sunrise, Midday, Sunset, Night, Autumn, Holiday, Winter) that swap live via CSS custom properties and persist in `localStorage`.
 
@@ -22,7 +22,7 @@ Weather, marine conditions, tides, and radar imagery are all real, fetched from 
 | [Open-Meteo](https://open-meteo.com) | Forecast, hourly/daily conditions, UV index |
 | [Open-Meteo Marine](https://open-meteo.com) | Water temperature, wave height |
 | [NOAA CO-OPS](https://tidesandcurrents.noaa.gov) | Tide predictions from the nearest station |
-| [RainViewer](https://www.rainviewer.com) | Radar tile imagery |
+| [LibreWXR](https://librewxr.net) | Radar tile imagery, plus a ~60-minute precipitation nowcast |
 
 `WeatherService.java` fetches and caches this server-side (10-minute TTL) and exposes it as a small JSON contract at `/api/weather`; the dashboard polls that endpoint client-side and re-renders in place.
 

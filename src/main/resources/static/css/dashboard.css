@@ -1162,10 +1162,6 @@ input[type="range"]::-moz-range-thumb {
     overflow: visible;
 }
 
-.wx-main-hourly .wx-chart {
-    height: 110px;
-}
-
 .wx-chart .chart-fill {
     stroke: none;
 }
@@ -1262,15 +1258,37 @@ input[type="range"]::-moz-range-thumb {
     overflow: hidden;
 }
 
+.detail-card.wx-sidebar-combined {
+    justify-content: flex-start;
+    gap: 10px;
+}
+
+.detail-card.wx-sidebar-combined > * {
+    flex-shrink: 0;
+}
+
+.wx-sidebar-divider {
+    flex-shrink: 0;
+    height: 1px;
+    background: var(--line);
+}
+
+.wx-sidebar-tide {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.wx-tide-value {
+    font-size: 1.15rem;
+    font-weight: 750;
+}
+
 .wx-main {
     display: flex;
     flex-direction: column;
     gap: 10px;
     min-height: 0;
-}
-
-.wx-main-hourly {
-    flex: 0 0 auto;
 }
 
 .wx-main-daily {
@@ -1291,27 +1309,24 @@ input[type="range"]::-moz-range-thumb {
 }
 
 .wx-radar-card {
-    flex: 0 0 auto;
+    flex: 1;
     display: flex;
     flex-direction: column;
     padding: 12px 20px;
+    min-height: 0;
 }
 
 .radar-wrap {
     position: relative;
+    flex: 1;
+    min-height: 0;
 }
 
 .radar-map {
-    height: 120px;
+    height: 100%;
     border-radius: 10px;
     overflow: hidden;
     background: var(--surface-strong);
-}
-
-.radar-map .leaflet-control-attribution {
-    background: rgba(7, 20, 34, 0.6);
-    color: var(--muted);
-    font-size: 9px;
 }
 
 .radar-overlay-bar {
@@ -1365,35 +1380,27 @@ input[type="range"]::-moz-range-thumb {
     border-color: transparent;
 }
 
-.wx-marine-strip {
-    flex: 0 0 auto;
-    display: flex;
-    align-items: center;
-    gap: 24px;
-    padding: 8px 18px;
-    border: 1px solid var(--line);
-    border-radius: 12px;
-    background: var(--surface-soft);
-    font-size: 0.86rem;
-    color: var(--muted);
-}
-
-.wx-main-hourly,
 .wx-main-daily {
     padding: 14px 20px;
 }
 
-.wx-main-hourly .card-head,
 .wx-main-daily .card-head {
     margin-bottom: 8px;
 }
 
-.wx-marine-strip strong {
+.wx-sidebar-marine {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.86rem;
+    color: var(--muted);
+}
+
+.wx-sidebar-marine strong {
     margin-left: 4px;
     color: var(--ink);
 }
 
-.wx-marine-strip svg {
+.wx-sidebar-marine svg {
     width: 14px;
     height: 14px;
     margin-right: 2px;
@@ -1506,6 +1513,7 @@ input[type="range"]::-moz-range-thumb {
 
 .uv-scale {
     position: relative;
+    flex-shrink: 0;
     height: 10px;
     border-radius: 999px;
     background: linear-gradient(90deg, #7be0b6, #ffe27a, #ffb15c, #ff6f6f, #c86bff);
@@ -1568,51 +1576,22 @@ input[type="range"]::-moz-range-thumb {
     line-height: 1;
 }
 
+.wx-uv-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.wx-uv-row .uv-scale {
+    flex: 1;
+    margin: 0;
+}
+
 .detail-note {
     margin: 6px 0 0;
     color: var(--muted);
     font-size: 0.84rem;
     line-height: 1.35;
-}
-
-.detail-split {
-    display: flex;
-    justify-content: space-between;
-    margin-top: 4px;
-}
-
-.detail-split div {
-    display: grid;
-    gap: 2px;
-}
-
-.detail-split div:last-child {
-    text-align: right;
-}
-
-.detail-split-label {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    color: var(--muted);
-    font-size: 0.76rem;
-}
-
-.detail-split-label svg {
-    width: 13px;
-    height: 13px;
-}
-
-.detail-split strong {
-    font-size: 1.05rem;
-}
-
-.sun-arc.mini svg {
-    max-width: 100%;
-}
-
-.sun-arc.mini .arc-sun-marker {
-    filter: drop-shadow(0 0 4px color-mix(in srgb, var(--accent) 70%, transparent));
 }
 
 /* ==========================================================================

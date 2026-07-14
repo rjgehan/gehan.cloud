@@ -55,12 +55,12 @@
         }
     });
 
-    /* ---- Rain radar (Leaflet + RainViewer) ---- */
+    /* ---- Rain radar (Leaflet + LibreWXR radar/nowcast) ---- */
     const RADAR_LAT = 40.12623;
     const RADAR_LON = -74.0493;
     let radarMap = null;
     let radarLayer = null;
-    let radarHost = "https://tilecache.rainviewer.com";
+    let radarHost = "https://api.librewxr.net";
     let radarFrames = [];
     let radarPastCount = 0;
     let radarFrameIndex = 0;
@@ -72,7 +72,8 @@
         if (!container || typeof L === "undefined" || radarMap) {
             return;
         }
-        radarMap = L.map(container, { zoomControl: false, attributionControl: true }).setView([RADAR_LAT, RADAR_LON], 7);
+        // Attribution control intentionally off: this runs on a single private household tablet, not a public site.
+        radarMap = L.map(container, { zoomControl: false, attributionControl: false }).setView([RADAR_LAT, RADAR_LON], 7);
         L.tileLayer("https://basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png", {
             attribution: "&copy; OpenStreetMap, &copy; CARTO",
             maxZoom: 19,
@@ -428,7 +429,7 @@
         });
     }
 
-    function renderDaylightArc(sunriseIso, sunsetIso, nextSunriseIso) {
+    function renderDaylightArc(sunriseIso, sunsetIso) {
         if (!sunriseIso || !sunsetIso) {
             return;
         }
@@ -455,16 +456,6 @@
         setAll("[data-daylight-fill]", (el) => {
             el.setAttribute("d", clamped <= 0 ? "" : `M18,92 A82,82 0 0 1 ${mx},${my}`);
         });
-
-        setAll("[data-daylight-status]", (el) => {
-            if (isDaytime) {
-                el.textContent = `Sun is up · sets at ${fmtTime(sunsetIso)}`;
-            } else if (now < sunrise) {
-                el.textContent = `Sun is down · rises at ${fmtTime(sunriseIso)}`;
-            } else {
-                el.textContent = `Sun is down · rises at ${fmtTime(nextSunriseIso || sunriseIso)}`;
-            }
-        });
     }
 
     function renderWeather(data) {
@@ -481,7 +472,6 @@
             setAll("[data-wx-uv-marker]", (el) => {
                 el.style.left = Math.max(2, Math.min(98, (current.uv / 11) * 100)) + "%";
             });
-            setAll("[data-wx-uv-note]", (el) => { el.textContent = uvBucket(current.uv).tip; });
         } else {
             setAll("[data-wx-label]", (el) => { el.textContent = "Weather unavailable"; });
         }
@@ -515,7 +505,7 @@
             setAll("[data-wx-lo]", (el) => { el.textContent = data.daily[0].loF; });
             setAll("[data-wx-sunrise]", (el) => { el.textContent = data.daily[0].sunrise ? fmtTime(data.daily[0].sunrise) : "—"; });
             setAll("[data-wx-sunset]", (el) => { el.textContent = data.daily[0].sunset ? fmtTime(data.daily[0].sunset) : "—"; });
-            renderDaylightArc(data.daily[0].sunrise, data.daily[0].sunset, data.daily[1] ? data.daily[1].sunrise : null);
+            renderDaylightArc(data.daily[0].sunrise, data.daily[0].sunset);
         }
 
         if (data.marine) {
@@ -534,13 +524,9 @@
             const followingEl = el.querySelector("[data-tide-following]");
             if (followingEl) {
                 followingEl.textContent = current && current.onshoreWind === true ? "Ocean breeze · cool"
-                    : current && current.onshoreWind === false ? "Land breeze · bugs"
+                    : current && current.onshoreWind === false ? "Inland breeze"
                     : "";
             }
-        });
-
-        setAll("[data-wx-updated]", (el) => {
-            el.textContent = `Updated ${new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
         });
     }
 
@@ -553,7 +539,6 @@
             .then(renderWeather)
             .catch(() => {
                 setAll("[data-wx-label]", (el) => { el.textContent = "Weather unavailable"; });
-                setAll("[data-wx-updated]", (el) => { el.textContent = "Unable to reach weather service"; });
             });
     }
 

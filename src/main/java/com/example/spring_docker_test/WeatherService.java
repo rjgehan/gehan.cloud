@@ -29,7 +29,7 @@ public class WeatherService {
     private final RestClient forecastClient = RestClient.create("https://api.open-meteo.com");
     private final RestClient marineClient = RestClient.create("https://marine-api.open-meteo.com");
     private final RestClient noaaClient = RestClient.create("https://api.tidesandcurrents.noaa.gov");
-    private final RestClient rainviewerClient = RestClient.create("https://api.rainviewer.com");
+    private final RestClient radarClient = RestClient.create("https://api.librewxr.net");
 
     private volatile WeatherSnapshot cached;
     private volatile Instant cachedAt = Instant.EPOCH;
@@ -50,7 +50,7 @@ public class WeatherService {
             return cachedRadarJson;
         }
         try {
-            String json = rainviewerClient.get()
+            String json = radarClient.get()
                     .uri("/public/weather-maps.json")
                     .retrieve()
                     .body(String.class);

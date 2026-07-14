@@ -43,7 +43,7 @@ The Home and Weather pages call a few free, keyless third-party APIs server-side
 
 - [Open-Meteo](https://open-meteo.com) — forecast, UV index, and marine conditions
 - [NOAA CO-OPS](https://api.tidesandcurrents.noaa.gov) — tide predictions
-- [RainViewer](https://www.rainviewer.com/api.html) — radar imagery tiles
+- [LibreWXR](https://librewxr.net) — radar imagery tiles and short-term (~60-minute) precipitation nowcast, RainViewer-API-compatible
 
 No API keys are required, but the deploy host needs outbound internet access to those domains, plus `unpkg.com` and `basemaps.cartocdn.com` (Leaflet + base map tiles loaded client-side on the Weather page).
 

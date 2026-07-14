@@ -286,24 +286,38 @@ public class HomeController {
                 <section class="dashboard-page" data-page="weather">
                     <div class="wx-layout">
                         <div class="wx-sidebar">
-                            <div class="detail-card wx-hero-card" data-wx-current>
+                            <div class="detail-card wx-sidebar-combined" data-wx-current>
                                 <p class="wx-hero-place">Manasquan, NJ</p>
                                 <span class="wx-hero-icon" data-wx-icon>%s</span>
                                 <div class="wx-hero-temp"><span data-wx-temp>&mdash;</span>&deg;</div>
                                 <div class="wx-hero-label" data-wx-label>Loading&hellip;</div>
                                 <div class="wx-hero-range">H:<span data-wx-hi>&mdash;</span>&deg;&nbsp;&nbsp;L:<span data-wx-lo>&mdash;</span>&deg;</div>
-                                <span class="page-sub" data-wx-updated>Loading&hellip;</span>
+
+                                <div class="wx-sidebar-divider"></div>
+
+                                <div class="detail-head">%sUV Index</div>
+                                <div class="wx-uv-row">
+                                    <div class="detail-value" data-wx-uv>&mdash;</div>
+                                    <div class="uv-scale"><span class="uv-marker" data-wx-uv-marker></span></div>
+                                </div>
+
+                                <div class="wx-sidebar-tide" data-tide-tile hidden>
+                                    <div class="wx-sidebar-divider"></div>
+                                    <div class="detail-head">%sTide</div>
+                                    <div class="wx-tide-value" data-tide-next>&mdash;</div>
+                                    <p class="detail-note" data-tide-following></p>
+                                </div>
+
+                                <div class="wx-sidebar-divider"></div>
+
+                                <div class="wx-sidebar-marine">
+                                    <span>%sWater <strong data-marine-water>&mdash;</strong></span>
+                                    <span>%sWaves <strong data-marine-wave>&mdash;</strong></span>
+                                </div>
                             </div>
-                            %s
-                            %s
                         </div>
 
                         <div class="wx-main">
-                            <div class="card wx-main-hourly">
-                                <div class="card-head"><h3>Hourly Forecast</h3></div>
-                                <svg class="wx-chart" data-wx-chart viewBox="0 0 720 170"></svg>
-                            </div>
-
                             <div class="card wx-main-daily">
                                 <div class="card-head"><h3>7-Day Forecast</h3></div>
                                 <div class="daily-list" data-wx-daily></div>
@@ -319,53 +333,13 @@ public class HomeController {
                                     </div>
                                 </div>
                             </div>
-
-                            <div class="wx-marine-strip">
-                                <span>%sWater <strong data-marine-water>&mdash;</strong></span>
-                                <span>%sWaves <strong data-marine-wave>&mdash;</strong></span>
-                                <span data-tide-tile hidden>%s<strong data-tide-next>&mdash;</strong></span>
-                            </div>
                         </div>
                     </div>
                 </section>
                 """.formatted(
-                        icon("weather", "wx-icon"), sunDetailCard(), uvDetailCard(),
-                        icon("play"),
-                        icon("waves"), icon("waves"), icon("waves"));
-    }
-
-    private static String uvDetailCard() {
-        return """
-                <div class="detail-card">
-                    <div class="detail-head">%sUV Index</div>
-                    <div class="detail-value" data-wx-uv>&mdash;</div>
-                    <div class="uv-scale"><span class="uv-marker" data-wx-uv-marker></span></div>
-                    <p class="detail-note" data-wx-uv-note></p>
-                </div>
-                """.formatted(icon("weather", "detail-icon"));
-    }
-
-    private static String sunDetailCard() {
-        return """
-                <div class="detail-card">
-                    <div class="detail-head">%sSunrise &amp; Sunset</div>
-                    <div class="sun-arc mini">
-                        <svg viewBox="0 0 200 100" aria-hidden="true">
-                            <path class="arc-track" d="M18,92 A82,82 0 0 1 182,92"/>
-                            <path class="arc-fill" data-daylight-fill d=""/>
-                            <g class="arc-sun-marker" data-daylight-marker transform="translate(18,92)">
-                                <circle r="5"/>
-                                <path d="M0,-9 L0,-6.3 M0,6.3 L0,9 M-9,0 L-6.3,0 M6.3,0 L9,0 M-6.4,-6.4 L-4.5,-4.5 M4.5,4.5 L6.4,6.4 M-6.4,6.4 L-4.5,4.5 M4.5,-4.5 L6.4,-6.4"/>
-                            </g>
-                        </svg>
-                    </div>
-                    <div class="detail-split">
-                        <div><span class="detail-split-label">%sSunrise</span><strong data-wx-sunrise>&mdash;</strong></div>
-                        <div><span class="detail-split-label">%sSunset</span><strong data-wx-sunset>&mdash;</strong></div>
-                    </div>
-                    <p class="detail-note" data-daylight-status></p>
-                </div>
-                """.formatted(icon("sunrise", "detail-icon"), icon("sunrise"), icon("sunset"));
+                        icon("weather", "wx-icon"), icon("weather", "detail-icon"), icon("waves", "detail-icon"),
+                        icon("waves"), icon("waves"),
+                        icon("play"));
     }
 
     /* ======================================================================
@@ -801,8 +775,6 @@ public class HomeController {
             Map.entry("minus", "<path d=\"M5 12h14\"/>"),
             Map.entry("music", "<path d=\"M9 18V5.2L20 3v12.8\"/><circle cx=\"6.5\" cy=\"18\" r=\"2.5\"/><circle cx=\"17.5\" cy=\"15.8\" r=\"2.5\"/>"),
             Map.entry("tv", "<rect x=\"3\" y=\"5\" width=\"18\" height=\"12\" rx=\"2\"/><path d=\"M9 21h6\"/>"),
-            Map.entry("sunrise", "<path d=\"M4 18h16\"/><path d=\"M6 18a6 6 0 0 1 12 0\"/><path d=\"M12 8V5M6.5 10 5 8.4M17.5 10 19 8.4\"/>"),
-            Map.entry("sunset", "<path d=\"M4 18h16\"/><path d=\"M6 15a6 6 0 0 1 12 0\"/><path d=\"M12 12V9M6.5 10 5 11.6M17.5 10 19 11.6\"/>"),
             Map.entry("coffee", "<path d=\"M4 9h13v4a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5Z\"/><path d=\"M17 10h1.5a2 2 0 0 1 0 4H17\"/><path d=\"M7 4c0 1-1 1-1 2M11 4c0 1-1 1-1 2\"/>"),
             Map.entry("movie", "<rect x=\"3\" y=\"6\" width=\"18\" height=\"13\" rx=\"2\"/><path d=\"M3 10h18M7 6 5 10M13 6l-2 4M19 6l-2 4\"/>"),
             Map.entry("umbrella", "<path d=\"M12 3a9 9 0 0 1 9 9H3a9 9 0 0 1 9-9Z\"/><path d=\"M12 12v7a2 2 0 0 1-3.5 1.3M12 3v-1\"/>"),
