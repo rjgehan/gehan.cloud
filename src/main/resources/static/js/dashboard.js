@@ -197,16 +197,139 @@
     tick();
     setInterval(tick, 15000);
 
+    /* ---- Live theme (continuous time-of-day color drift) ---- */
+    const LIVE_VAR_NAMES = [
+        "ink", "muted", "line", "surface", "surface-strong", "surface-soft", "page",
+        "accent", "accent-ink", "accent-soft", "sand", "bg-a", "bg-b", "bg-c", "bg-d",
+    ];
+
+    // Minutes-since-midnight anchors. Long flat stretches at midday/midnight, with the
+    // interesting color movement concentrated around dawn and dusk, like real daylight.
+    const LIVE_STOPS = [
+        { time: 120, vars: { // 02:00 deep night — lowest brightness point
+            ink: [216, 212, 204, 1], muted: [100, 96, 88, 1], line: [170, 145, 110, 0.09],
+            surface: [7, 6, 9, 0.92], "surface-strong": [13, 11, 15, 0.96], "surface-soft": [9, 8, 11, 0.68],
+            page: [3, 3, 5, 1], accent: [120, 95, 66, 1], "accent-ink": [20, 13, 7, 1], "accent-soft": [120, 95, 66, 0.1],
+            sand: [95, 80, 60, 1], "bg-a": [2, 2, 4, 1], "bg-b": [8, 7, 11, 1], "bg-c": [14, 11, 9, 1], "bg-d": [5, 4, 8, 1],
+        } },
+        { time: 330, vars: { // 05:30 pre-dawn — first hint of blue
+            ink: [224, 235, 242, 1], muted: [117, 140, 155, 1], line: [140, 180, 205, 0.13],
+            surface: [9, 19, 31, 0.86], "surface-strong": [15, 31, 47, 0.94], "surface-soft": [11, 23, 35, 0.6],
+            page: [5, 14, 24, 1], accent: [95, 140, 168, 1], "accent-ink": [9, 25, 36, 1], "accent-soft": [95, 140, 168, 0.13],
+            sand: [140, 148, 120, 1], "bg-a": [4, 11, 20, 1], "bg-b": [11, 28, 42, 1], "bg-c": [20, 45, 62, 1], "bg-d": [9, 23, 36, 1],
+        } },
+        { time: 450, vars: { // 07:30 morning — light, fresh blue
+            ink: [240, 250, 255, 1], muted: [168, 201, 216, 1], line: [150, 205, 230, 0.2],
+            surface: [13, 42, 66, 0.78], "surface-strong": [20, 62, 90, 0.9], "surface-soft": [13, 46, 70, 0.52],
+            page: [9, 32, 50, 1], accent: [120, 205, 238, 1], "accent-ink": [8, 32, 46, 1], "accent-soft": [120, 205, 238, 0.17],
+            sand: [231, 216, 163, 1], "bg-a": [8, 28, 46, 1], "bg-b": [16, 52, 76, 1], "bg-c": [48, 112, 140, 1], "bg-d": [14, 50, 74, 1],
+        } },
+        { time: 720, vars: { // 12:00 midday — brightest, most vivid blue
+            ink: [244, 252, 255, 1], muted: [176, 220, 232, 1], line: [150, 220, 238, 0.2],
+            surface: [10, 40, 62, 0.76], "surface-strong": [16, 60, 86, 0.88], "surface-soft": [10, 45, 68, 0.5],
+            page: [10, 38, 58, 1], accent: [110, 210, 240, 1], "accent-ink": [7, 34, 48, 1], "accent-soft": [110, 210, 240, 0.18],
+            sand: [240, 224, 168, 1], "bg-a": [9, 32, 52, 1], "bg-b": [18, 58, 82, 1], "bg-c": [54, 130, 155, 1], "bg-d": [16, 56, 80, 1],
+        } },
+        { time: 1020, vars: { // 17:00 late afternoon — warming begins
+            ink: [250, 248, 242, 1], muted: [198, 196, 168, 1], line: [220, 205, 150, 0.2],
+            surface: [26, 32, 40, 0.78], "surface-strong": [38, 46, 54, 0.9], "surface-soft": [26, 32, 40, 0.54],
+            page: [18, 22, 28, 1], accent: [235, 190, 110, 1], "accent-ink": [30, 20, 6, 1], "accent-soft": [235, 190, 110, 0.18],
+            sand: [240, 200, 130, 1], "bg-a": [14, 18, 26, 1], "bg-b": [46, 44, 44, 1], "bg-c": [120, 90, 60, 1], "bg-d": [44, 36, 40, 1],
+        } },
+        { time: 1110, vars: { // 18:30 dinner / early sunset
+            ink: [255, 244, 236, 1], muted: [224, 180, 158, 1], line: [255, 178, 130, 0.2],
+            surface: [38, 20, 32, 0.82], "surface-strong": [60, 28, 42, 0.92], "surface-soft": [38, 20, 32, 0.56],
+            page: [30, 16, 26, 1], accent: [255, 140, 92, 1], "accent-ink": [44, 17, 7, 1], "accent-soft": [255, 140, 92, 0.18],
+            sand: [242, 178, 90, 1], "bg-a": [24, 14, 32, 1], "bg-b": [70, 32, 55, 1], "bg-c": [170, 75, 45, 1], "bg-d": [78, 32, 55, 1],
+        } },
+        { time: 1200, vars: { // 20:00 sunset peak — richest warm hues
+            ink: [255, 243, 236, 1], muted: [224, 185, 168, 1], line: [255, 178, 130, 0.2],
+            surface: [38, 18, 30, 0.82], "surface-strong": [63, 27, 40, 0.94], "surface-soft": [38, 18, 30, 0.58],
+            page: [36, 19, 31, 1], accent: [255, 138, 92, 1], "accent-ink": [47, 18, 6, 1], "accent-soft": [255, 138, 92, 0.18],
+            sand: [242, 178, 90, 1], "bg-a": [28, 16, 48, 1], "bg-b": [74, 31, 61, 1], "bg-c": [179, 80, 47, 1], "bg-d": [92, 36, 64, 1],
+        } },
+        { time: 1290, vars: { // 21:30 dusk — cooling into night
+            ink: [238, 225, 222, 1], muted: [150, 128, 120, 1], line: [200, 150, 120, 0.16],
+            surface: [22, 15, 20, 0.86], "surface-strong": [35, 22, 28, 0.94], "surface-soft": [24, 16, 21, 0.62],
+            page: [14, 9, 14, 1], accent: [200, 120, 90, 1], "accent-ink": [30, 13, 8, 1], "accent-soft": [200, 120, 90, 0.15],
+            sand: [180, 130, 80, 1], "bg-a": [10, 7, 14, 1], "bg-b": [35, 18, 32, 1], "bg-c": [75, 42, 38, 1], "bg-d": [25, 14, 26, 1],
+        } },
+        { time: 1380, vars: { // 23:00 night settling
+            ink: [224, 218, 206, 1], muted: [120, 112, 100, 1], line: [190, 160, 120, 0.12],
+            surface: [12, 10, 14, 0.9], "surface-strong": [20, 16, 20, 0.95], "surface-soft": [14, 12, 16, 0.65],
+            page: [5, 4, 7, 1], accent: [150, 105, 66, 1], "accent-ink": [22, 14, 8, 1], "accent-soft": [150, 105, 66, 0.12],
+            sand: [110, 88, 62, 1], "bg-a": [3, 3, 5, 1], "bg-b": [11, 9, 14, 1], "bg-c": [18, 13, 10, 1], "bg-d": [7, 6, 10, 1],
+        } },
+    ];
+
+    function lerp(a, b, t) {
+        return a + (b - a) * t;
+    }
+
+    function formatLiveColor(c) {
+        const r = Math.round(c[0]);
+        const g = Math.round(c[1]);
+        const b = Math.round(c[2]);
+        return c[3] >= 1 ? `rgb(${r}, ${g}, ${b})` : `rgba(${r}, ${g}, ${b}, ${c[3].toFixed(2)})`;
+    }
+
+    function applyLiveTheme() {
+        const now = new Date();
+        const minutes = now.getHours() * 60 + now.getMinutes() + now.getSeconds() / 60;
+
+        let from = LIVE_STOPS[LIVE_STOPS.length - 1];
+        let to = LIVE_STOPS[0];
+        let span = 1440 - from.time + to.time;
+        let elapsed = minutes >= from.time ? minutes - from.time : minutes + 1440 - from.time;
+
+        for (let i = 0; i < LIVE_STOPS.length - 1; i++) {
+            if (minutes >= LIVE_STOPS[i].time && minutes < LIVE_STOPS[i + 1].time) {
+                from = LIVE_STOPS[i];
+                to = LIVE_STOPS[i + 1];
+                span = to.time - from.time;
+                elapsed = minutes - from.time;
+                break;
+            }
+        }
+
+        const t = span > 0 ? elapsed / span : 0;
+        const root = document.documentElement.style;
+        LIVE_VAR_NAMES.forEach((name) => {
+            const a = from.vars[name];
+            const b = to.vars[name];
+            const mixed = [lerp(a[0], b[0], t), lerp(a[1], b[1], t), lerp(a[2], b[2], t), lerp(a[3], b[3], t)];
+            root.setProperty(`--${name}`, formatLiveColor(mixed));
+        });
+    }
+
+    function clearLiveTheme() {
+        const root = document.documentElement.style;
+        LIVE_VAR_NAMES.forEach((name) => root.removeProperty(`--${name}`));
+    }
+
     /* ---- Theme switcher ---- */
     const THEME_KEY = "dashboard-theme";
     const swatches = [...document.querySelectorAll("[data-theme-choice]")];
+    let liveThemeTimer = null;
 
     function applyTheme(theme, persist) {
+        if (liveThemeTimer) {
+            clearInterval(liveThemeTimer);
+            liveThemeTimer = null;
+            clearLiveTheme();
+        }
+
         if (theme === "dusk") {
             document.documentElement.removeAttribute("data-theme");
         } else {
             document.documentElement.setAttribute("data-theme", theme);
         }
+
+        if (theme === "live") {
+            applyLiveTheme();
+            liveThemeTimer = setInterval(applyLiveTheme, 12000);
+        }
+
         swatches.forEach((swatch) => swatch.classList.toggle("is-selected", swatch.dataset.themeChoice === theme));
         if (persist) {
             localStorage.setItem(THEME_KEY, theme);
@@ -257,20 +380,29 @@
         btn.addEventListener("click", () => btn.classList.toggle("is-active"));
     });
 
-    /* ---- Thermostat stepper ---- */
-    document.querySelectorAll("[data-stepper]").forEach((stepper) => {
+    /* ---- Stepper (reused for thermostat, fan speed, light stages) ---- */
+    function wireStepper(stepper, onChange) {
         const key = stepper.dataset.stepper;
         const targets = [...document.querySelectorAll(`[data-stepper-target="${key}"]`)];
         const ring = document.querySelector(`[data-thermo-ring="${key}"]`);
-        const min = parseInt(stepper.dataset.min || "60", 10);
-        const max = parseInt(stepper.dataset.max || "85", 10);
-        let value = parseInt(stepper.dataset.value || "72", 10);
+        const min = parseInt(stepper.dataset.min || "0", 10);
+        const max = parseInt(stepper.dataset.max || "10", 10);
+        const unit = stepper.dataset.unit || "";
+        const zeroLabel = stepper.dataset.zeroLabel || "";
+        let value = parseInt(stepper.dataset.value || String(min), 10);
+
+        function format(v) {
+            return zeroLabel && v === 0 ? zeroLabel : `${v}${unit}`;
+        }
 
         function render() {
-            targets.forEach((el) => { el.textContent = value + "°"; });
+            targets.forEach((el) => { el.textContent = format(value); });
             if (ring) {
                 const pct = Math.round(((value - min) / (max - min)) * 100);
                 ring.style.setProperty("--pct", String(pct));
+            }
+            if (onChange) {
+                onChange(value);
             }
         }
 
@@ -283,7 +415,84 @@
             render();
         });
         render();
+    }
+
+    document.querySelectorAll("[data-stepper]").forEach((stepper) => wireStepper(stepper));
+
+    /* ---- Ceiling fans (fan speed + warm/cool light stages) ---- */
+    const FAN_STATE = {};
+    document.querySelectorAll("[data-fan-card]").forEach((card) => {
+        const id = card.dataset.fanCard;
+        FAN_STATE[id] = {
+            name: card.dataset.fanName,
+            speed: parseInt(card.dataset.fanSpeed, 10),
+            warm: parseInt(card.dataset.warmStage, 10),
+            cool: parseInt(card.dataset.coolStage, 10),
+        };
+        card.addEventListener("click", () => openFanModal(id));
     });
+
+    function fanChipLabel(kind, value) {
+        if (kind === "speed") {
+            return value === 0 ? "Off" : `Speed ${value}`;
+        }
+        const label = kind === "warm" ? "Warm" : "Cool";
+        return value === 0 ? "Off" : `${label} ${value}`;
+    }
+
+    function syncFanCard(id) {
+        const card = document.querySelector(`[data-fan-card="${id}"]`);
+        const state = FAN_STATE[id];
+        if (!card || !state) {
+            return;
+        }
+        [["speed", state.speed], ["warm", state.warm], ["cool", state.cool]].forEach(([kind, value]) => {
+            const chip = card.querySelector(`[data-chip="${kind}"]`);
+            if (!chip) {
+                return;
+            }
+            chip.querySelector("span").textContent = fanChipLabel(kind, value);
+            chip.classList.toggle("is-on", value > 0);
+        });
+    }
+
+    function openFanModal(id) {
+        const state = FAN_STATE[id];
+        if (!state) {
+            return;
+        }
+        const body = `
+            <div class="fan-modal-group">
+                <div class="fan-modal-row">
+                    <span class="fan-modal-label">Fan Speed</span>
+                    <div class="stepper" data-stepper="fan-speed" data-min="0" data-max="10" data-value="${state.speed}" data-zero-label="Off">
+                        <button type="button" data-step="down">&minus;</button>
+                        <span class="stepper-value" data-stepper-target="fan-speed"></span>
+                        <button type="button" data-step="up">+</button>
+                    </div>
+                </div>
+                <div class="fan-modal-row">
+                    <span class="fan-modal-label">Warm Light</span>
+                    <div class="stepper stepper-warm" data-stepper="fan-warm" data-min="0" data-max="5" data-value="${state.warm}" data-zero-label="Off">
+                        <button type="button" data-step="down">&minus;</button>
+                        <span class="stepper-value" data-stepper-target="fan-warm"></span>
+                        <button type="button" data-step="up">+</button>
+                    </div>
+                </div>
+                <div class="fan-modal-row">
+                    <span class="fan-modal-label">Cool Light</span>
+                    <div class="stepper stepper-cool" data-stepper="fan-cool" data-min="0" data-max="5" data-value="${state.cool}" data-zero-label="Off">
+                        <button type="button" data-step="down">&minus;</button>
+                        <span class="stepper-value" data-stepper-target="fan-cool"></span>
+                        <button type="button" data-step="up">+</button>
+                    </div>
+                </div>
+            </div>`;
+        openModal(state.name, body);
+        wireStepper(document.querySelector('[data-stepper="fan-speed"]'), (v) => { state.speed = v; syncFanCard(id); });
+        wireStepper(document.querySelector('[data-stepper="fan-warm"]'), (v) => { state.warm = v; syncFanCard(id); });
+        wireStepper(document.querySelector('[data-stepper="fan-cool"]'), (v) => { state.cool = v; syncFanCard(id); });
+    }
 
     /* ---- Now-playing transport (play/pause icon swap only) ---- */
     document.querySelectorAll("[data-play-pause]").forEach((btn) => {
@@ -544,4 +753,298 @@
 
     loadWeather();
     setInterval(loadWeather, 10 * 60 * 1000);
+
+    /* ---- Calendar (month/year/decade drill navigation, modeled on Apple Calendar) ---- */
+    function calIso(d) {
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    }
+
+    // Placeholder events keyed by ISO date, expressed relative to today (not wired to a real calendar yet).
+    const CAL_EVENTS = {};
+    (function seedCalEvents() {
+        const today = new Date();
+        const addDays = (n) => {
+            const d = new Date(today);
+            d.setDate(d.getDate() + n);
+            return d;
+        };
+        const add = (date, time, title, initial, color) => {
+            const key = calIso(date);
+            (CAL_EVENTS[key] = CAL_EVENTS[key] || []).push({ time, title, initial, color });
+        };
+        const dow = today.getDay();
+        const satOffset = (6 - dow + 7) % 7;
+        const sunOffset = dow === 0 ? 0 : satOffset + 1;
+
+        add(today, "9:00 AM", "Beach Cleanup", "M", "#75d4f2");
+        add(today, "12:30 PM", "Grocery Pickup", "D", "#d9bd79");
+        add(today, "6:00 PM", "Family Dinner", "All", "#9be29b");
+        add(addDays(1), "8:00 AM", "Surf Lesson", "K", "#f2a65a");
+        add(addDays(1), "2:00 PM", "Dock Maintenance", "D", "#d9bd79");
+        add(addDays(satOffset), "10:00 AM", "Farmers Market", "M", "#75d4f2");
+        add(addDays(satOffset), "7:00 PM", "Game Night", "All", "#9be29b");
+        add(addDays(sunOffset), "9:00 AM", "Boat Trip", "All", "#9be29b");
+    })();
+
+    const calToday = new Date();
+    const calState = {
+        level: "month",
+        year: calToday.getFullYear(),
+        month: calToday.getMonth(),
+        selected: calIso(calToday),
+        decadeStart: calToday.getFullYear() - (calToday.getFullYear() % 12),
+    };
+
+    function calTitle() {
+        if (calState.level === "month") {
+            return new Date(calState.year, calState.month, 1).toLocaleDateString([], { month: "long", year: "numeric" });
+        }
+        if (calState.level === "year") {
+            return String(calState.year);
+        }
+        return `${calState.decadeStart}–${calState.decadeStart + 11}`;
+    }
+
+    function buildMonthCells(year, month) {
+        const todayIso = calIso(new Date());
+        const firstWeekday = new Date(year, month, 1).getDay();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const daysInPrevMonth = new Date(year, month, 0).getDate();
+        const totalCells = Math.ceil((firstWeekday + daysInMonth) / 7) * 7;
+
+        let html = "";
+        for (let i = 0; i < totalCells; i++) {
+            const dayNum = i - firstWeekday + 1;
+            let cellYear = year;
+            let cellMonth = month;
+            let cellDate;
+            let isOutside = false;
+            if (dayNum < 1) {
+                cellMonth = month - 1 < 0 ? 11 : month - 1;
+                cellYear = month - 1 < 0 ? year - 1 : year;
+                cellDate = daysInPrevMonth + dayNum;
+                isOutside = true;
+            } else if (dayNum > daysInMonth) {
+                cellMonth = month + 1 > 11 ? 0 : month + 1;
+                cellYear = month + 1 > 11 ? year + 1 : year;
+                cellDate = dayNum - daysInMonth;
+                isOutside = true;
+            } else {
+                cellDate = dayNum;
+            }
+            const cellIso = calIso(new Date(cellYear, cellMonth, cellDate));
+            const isToday = cellIso === todayIso;
+            const isSelected = cellIso === calState.selected;
+            const events = CAL_EVENTS[cellIso] || [];
+            const pill = events.length
+                ? `<span class="cal-event-pill" style="background:${events[0].color}22;color:${events[0].color}">` +
+                  (events.length > 1 ? `${events[0].title} +${events.length - 1}` : events[0].title) +
+                  `</span>`
+                : "";
+            html += `<div class="cal-day${isOutside ? " is-outside" : ""}${isToday ? " is-today" : ""}${isSelected ? " is-selected" : ""}"` +
+                ` data-cal-day="${cellDate}" data-cal-month="${cellMonth}" data-cal-year="${cellYear}">` +
+                `<span class="cal-day-num">${cellDate}</span>` +
+                `<span class="cal-day-events">${pill}</span></div>`;
+        }
+        return html;
+    }
+
+    function buildYearCells(year) {
+        const today = new Date();
+        let html = "";
+        for (let m = 0; m < 12; m++) {
+            const label = new Date(year, m, 1).toLocaleDateString([], { month: "short" });
+            const firstWeekday = new Date(year, m, 1).getDay();
+            const daysInMonth = new Date(year, m + 1, 0).getDate();
+            const totalCells = Math.ceil((firstWeekday + daysInMonth) / 7) * 7;
+            let miniHtml = "";
+            for (let i = 0; i < totalCells; i++) {
+                const dayNum = i - firstWeekday + 1;
+                if (dayNum < 1 || dayNum > daysInMonth) {
+                    miniHtml += `<span class="cal-mini-day is-outside"></span>`;
+                    continue;
+                }
+                const isToday = year === today.getFullYear() && m === today.getMonth() && dayNum === today.getDate();
+                miniHtml += `<span class="cal-mini-day${isToday ? " is-today" : ""}">${dayNum}</span>`;
+            }
+            html += `<div class="cal-mini-month" data-cal-month-select="${m}">` +
+                `<div class="cal-mini-month-label">${label}</div>` +
+                `<div class="cal-mini-grid">${miniHtml}</div></div>`;
+        }
+        return html;
+    }
+
+    function buildDecadeCells(startYear) {
+        const currentYear = new Date().getFullYear();
+        let html = "";
+        for (let i = 0; i < 12; i++) {
+            const y = startYear + i;
+            html += `<div class="cal-year-cell${y === currentYear ? " is-current" : ""}" data-cal-year-select="${y}">${y}</div>`;
+        }
+        return html;
+    }
+
+    function openModal(title, bodyHtml) {
+        const modal = document.querySelector("[data-modal]");
+        const titleEl = document.querySelector("[data-modal-title]");
+        const bodyEl = document.querySelector("[data-modal-body]");
+        if (!modal || !titleEl || !bodyEl) {
+            return;
+        }
+        titleEl.textContent = title;
+        bodyEl.innerHTML = bodyHtml;
+        modal.hidden = false;
+    }
+
+    function closeModal() {
+        const modal = document.querySelector("[data-modal]");
+        if (modal) {
+            modal.hidden = true;
+        }
+    }
+
+    document.querySelectorAll("[data-modal-close]").forEach((el) => {
+        el.addEventListener("click", closeModal);
+    });
+
+    function openCalModal(dateIso) {
+        const [y, m, d] = dateIso.split("-").map(Number);
+        const date = new Date(y, m - 1, d);
+        const todayIso = calIso(new Date());
+        const title = dateIso === todayIso
+            ? "Today"
+            : date.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" });
+        const events = CAL_EVENTS[dateIso] || [];
+        const body = events.length
+            ? events.map((e) => `<div class="agenda-item"><span class="agenda-time">${e.time}</span>` +
+                `<span class="agenda-title">${e.title}</span>` +
+                `<span class="member-dot" style="background:${e.color}">${e.initial}</span></div>`).join("")
+            : `<p class="modal-empty">No events scheduled</p>`;
+        openModal(title, body);
+    }
+
+    function attachCalGridHandlers() {
+        document.querySelectorAll("[data-cal-day]").forEach((el) => {
+            el.addEventListener("click", () => {
+                const y = Number(el.dataset.calYear);
+                const m = Number(el.dataset.calMonth);
+                const d = Number(el.dataset.calDay);
+                calState.selected = calIso(new Date(y, m, d));
+                calState.year = y;
+                calState.month = m;
+                calRender();
+                openCalModal(calState.selected);
+            });
+        });
+        document.querySelectorAll("[data-cal-month-select]").forEach((el) => {
+            el.addEventListener("click", () => {
+                calState.month = Number(el.dataset.calMonthSelect);
+                calState.level = "month";
+                calRender();
+            });
+        });
+        document.querySelectorAll("[data-cal-year-select]").forEach((el) => {
+            el.addEventListener("click", () => {
+                calState.year = Number(el.dataset.calYearSelect);
+                calState.level = "year";
+                calRender();
+            });
+        });
+    }
+
+    function calRender() {
+        const grid = document.querySelector("[data-calendar-grid]");
+        const weekdays = document.querySelector("[data-cal-weekdays]");
+        const titleBtn = document.querySelector("[data-cal-title]");
+        if (!grid || !weekdays || !titleBtn) {
+            return;
+        }
+
+        titleBtn.textContent = calTitle();
+        grid.className = "cal-grid" + (calState.level !== "month" ? ` is-${calState.level}` : "");
+
+        if (calState.level === "month") {
+            weekdays.hidden = false;
+            weekdays.innerHTML = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => `<span>${d}</span>`).join("");
+            grid.innerHTML = buildMonthCells(calState.year, calState.month);
+        } else if (calState.level === "year") {
+            weekdays.hidden = true;
+            weekdays.innerHTML = "";
+            grid.innerHTML = buildYearCells(calState.year);
+        } else {
+            weekdays.hidden = true;
+            weekdays.innerHTML = "";
+            grid.innerHTML = buildDecadeCells(calState.decadeStart);
+        }
+
+        attachCalGridHandlers();
+    }
+
+    function calPrev() {
+        if (calState.level === "month") {
+            calState.month--;
+            if (calState.month < 0) {
+                calState.month = 11;
+                calState.year--;
+            }
+        } else if (calState.level === "year") {
+            calState.year--;
+        } else {
+            calState.decadeStart -= 12;
+        }
+        calRender();
+    }
+
+    function calNext() {
+        if (calState.level === "month") {
+            calState.month++;
+            if (calState.month > 11) {
+                calState.month = 0;
+                calState.year++;
+            }
+        } else if (calState.level === "year") {
+            calState.year++;
+        } else {
+            calState.decadeStart += 12;
+        }
+        calRender();
+    }
+
+    function calDrillUp() {
+        if (calState.level === "month") {
+            calState.level = "year";
+        } else if (calState.level === "year") {
+            calState.decadeStart = calState.year - (calState.year % 12);
+            calState.level = "decade";
+        }
+        calRender();
+    }
+
+    const calPrevBtn = document.querySelector("[data-cal-prev]");
+    const calNextBtn = document.querySelector("[data-cal-next]");
+    const calTodayBtn = document.querySelector("[data-cal-today]");
+    const calTitleBtn = document.querySelector("[data-cal-title]");
+
+    if (calPrevBtn) {
+        calPrevBtn.addEventListener("click", calPrev);
+    }
+    if (calNextBtn) {
+        calNextBtn.addEventListener("click", calNext);
+    }
+    if (calTitleBtn) {
+        calTitleBtn.addEventListener("click", calDrillUp);
+    }
+    if (calTodayBtn) {
+        calTodayBtn.addEventListener("click", () => {
+            const t = new Date();
+            calState.level = "month";
+            calState.year = t.getFullYear();
+            calState.month = t.getMonth();
+            calState.selected = calIso(t);
+            calRender();
+        });
+    }
+
+    calRender();
+    setInterval(calRender, 5 * 60 * 1000);
 })();

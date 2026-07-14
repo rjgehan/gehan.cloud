@@ -47,10 +47,20 @@ public class HomeController {
                         </form>
                     </nav>
                 </main>
+                <div class="modal" data-modal hidden>
+                    <div class="modal-backdrop" data-modal-close></div>
+                    <div class="modal-card">
+                        <div class="modal-head">
+                            <p class="modal-title" data-modal-title></p>
+                            <button type="button" class="icon-button" data-modal-close title="Close">%s</button>
+                        </div>
+                        <div class="modal-body" data-modal-body></div>
+                    </div>
+                </div>
                 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
                 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
                 <script src="/js/dashboard.js"></script>
-                """.formatted(pages, navItems(), csrfToken.getParameterName(), csrfToken.getToken(), icon("logout"));
+                """.formatted(pages, navItems(), csrfToken.getParameterName(), csrfToken.getToken(), icon("logout"), icon("close"));
 
         return page("Home", body);
     }
@@ -347,78 +357,47 @@ public class HomeController {
        ====================================================================== */
 
     private static String lightsPage() {
-        String rooms = roomCard("living", "Living Room", true, 70, true, 2)
-                + roomCard("primary", "Primary Suite", true, 45, false, 1)
-                + roomCard("bunk", "Bunk Room", false, 0, false, 1)
-                + roomCard("porch", "Screened Porch", true, 85, true, 1);
+        String fans = fanCard("master", "Master Fan", 4, 2, 0)
+                + fanCard("bunkbed", "Bunkbed Fan", 0, 0, 0)
+                + fanCard("double", "Double Beds Fan", 2, 0, 3)
+                + fanCard("living", "Living Room Fan", 6, 4, 0);
 
         return """
                 <section class="dashboard-page" data-page="lights">
                     <div class="page-head">
                         <div>
                             <p class="eyebrow">Lights &amp; Fans</p>
-                            <h1>Room Controls</h1>
+                            <h1>Ceiling Fans</h1>
                         </div>
                         <span class="page-sub">Not yet connected &middot; will control Home Assistant devices</span>
                     </div>
-                    <div class="quick-actions">
-                        <button type="button" data-toggle-active>%sAll Lights On</button>
-                        <button type="button" class="ghost-button" data-toggle-active>%sAll Lights Off</button>
-                        <button type="button" class="ghost-button" data-toggle-active>%sNight Mode</button>
-                    </div>
-                    <div class="tile-grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr))">
+                    <div class="tile-grid" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr))">
                         %s
                     </div>
                 </section>
-                """.formatted(icon("plus"), icon("minus"), icon("moon"), rooms);
+                """.formatted(fans);
     }
 
-    private static String roomCard(String id, String room, boolean lightOn, int brightness, boolean fanOn, int fanSpeed) {
+    private static String fanCard(String id, String name, int fanSpeed, int warmStage, int coolStage) {
         return """
-                <div class="card room-card">
+                <button type="button" class="card fan-card" data-fan-card="%s" data-fan-name="%s"
+                        data-fan-speed="%d" data-warm-stage="%d" data-cool-stage="%d">
                     <div class="card-head">
                         <h3>%s</h3>
                         <span class="icon-badge">%s</span>
                     </div>
-                    <div class="control-row">
-                        <span class="row-label">%sLight</span>
-                        <label class="switch">
-                            <input type="checkbox" %s>
-                            <span class="switch-track"></span>
-                        </label>
+                    <div class="fan-card-status">
+                        <span class="fan-status-chip%s" data-chip="speed">%s<span>%s</span></span>
+                        <span class="fan-status-chip chip-warm%s" data-chip="warm">%s<span>%s</span></span>
+                        <span class="fan-status-chip chip-cool%s" data-chip="cool">%s<span>%s</span></span>
                     </div>
-                    <div class="slider-row">
-                        <span class="slider-label">Brightness</span>
-                        <input type="range" min="0" max="100" value="%d" data-slider="%s-bright">
-                        <span class="slider-value" data-slider-value="%s-bright" data-unit="%%">%d%%</span>
-                    </div>
-                    <div class="control-row">
-                        <span class="row-label">%sFan</span>
-                        <label class="switch">
-                            <input type="checkbox" %s>
-                            <span class="switch-track"></span>
-                        </label>
-                    </div>
-                    <div class="control-row">
-                        <span class="row-label">Speed</span>
-                        <div class="fan-speed-dots" data-speed-group>
-                            <button type="button" class="%s">1</button>
-                            <button type="button" class="%s">2</button>
-                            <button type="button" class="%s">3</button>
-                        </div>
-                    </div>
-                    <div class="control-row">
-                        <span class="row-label">Direction</span>
-                        <button type="button" class="icon-button" data-toggle-active title="Reverse rotation">%s</button>
-                    </div>
-                </div>
+                </button>
                 """.formatted(
-                        room, icon("fan"),
-                        icon("lights"), lightOn ? "checked" : "",
-                        brightness, id, id, brightness,
-                        icon("fan"), fanOn ? "checked" : "",
-                        fanSpeed == 1 ? "is-selected" : "", fanSpeed == 2 ? "is-selected" : "", fanSpeed == 3 ? "is-selected" : "",
-                        icon("auto"));
+                        id, escapeHtml(name), fanSpeed, warmStage, coolStage,
+                        escapeHtml(name), icon("fan"),
+                        fanSpeed > 0 ? " is-on" : "", icon("fan"), fanSpeed == 0 ? "Off" : "Speed " + fanSpeed,
+                        warmStage > 0 ? " is-on" : "", icon("lights"), warmStage == 0 ? "Off" : "Warm " + warmStage,
+                        coolStage > 0 ? " is-on" : "", icon("lights"), coolStage == 0 ? "Off" : "Cool " + coolStage);
     }
 
     /* ======================================================================
@@ -464,7 +443,7 @@ public class HomeController {
                                     </div>
                                 </div>
                                 <div>
-                                    <div class="stepper" data-stepper="main" data-min="60" data-max="85" data-value="74">
+                                    <div class="stepper" data-stepper="main" data-min="60" data-max="85" data-value="74" data-unit="&deg;">
                                         <button type="button" data-step="down">%s</button>
                                         <span class="stepper-value" data-stepper-target="main">74&deg;</span>
                                         <button type="button" data-step="up">%s</button>
@@ -655,17 +634,6 @@ public class HomeController {
        ====================================================================== */
 
     private static String calendarPage() {
-        String today = agendaItem("9:00 AM", "Beach Cleanup", "M", "#75d4f2")
-                + agendaItem("12:30 PM", "Grocery Pickup", "D", "#d9bd79")
-                + agendaItem("6:00 PM", "Family Dinner", "All", "#9be29b");
-
-        String tomorrow = agendaItem("8:00 AM", "Surf Lesson", "K", "#f2a65a")
-                + agendaItem("2:00 PM", "Dock Maintenance", "D", "#d9bd79");
-
-        String weekend = agendaItem("Sat 10:00 AM", "Farmers Market", "M", "#75d4f2")
-                + agendaItem("Sat 7:00 PM", "Game Night", "All", "#9be29b")
-                + agendaItem("Sun 9:00 AM", "Boat Trip", "All", "#9be29b");
-
         return """
                 <section class="dashboard-page" data-page="calendar">
                     <div class="page-head">
@@ -673,30 +641,19 @@ public class HomeController {
                             <p class="eyebrow">Calendar</p>
                             <h1>Family Schedule</h1>
                         </div>
-                        <button type="button" data-toggle-active>%sAdd Event</button>
                     </div>
-                    <div class="card">
-                        <div class="agenda-group">
-                            <p class="agenda-day">Today</p>
-                            %s
-                            <p class="agenda-day">Tomorrow</p>
-                            %s
-                            <p class="agenda-day">This Weekend</p>
-                            %s
+                    <div class="cal-card card">
+                        <div class="cal-toolbar">
+                            <button type="button" class="icon-button" data-cal-prev title="Previous">%s</button>
+                            <button type="button" class="cal-title" data-cal-title></button>
+                            <button type="button" class="icon-button" data-cal-next title="Next">%s</button>
+                            <button type="button" class="cal-today-btn" data-cal-today>Today</button>
                         </div>
+                        <div class="cal-weekdays" data-cal-weekdays></div>
+                        <div class="cal-grid" data-calendar-grid></div>
                     </div>
                 </section>
-                """.formatted(icon("plus"), today, tomorrow, weekend);
-    }
-
-    private static String agendaItem(String time, String title, String initial, String colorHex) {
-        return """
-                <div class="agenda-item">
-                    <span class="agenda-time">%s</span>
-                    <span class="agenda-title">%s</span>
-                    <span class="member-dot" style="background:%s">%s</span>
-                </div>
-                """.formatted(time, title, colorHex, initial);
+                """.formatted(iconRotated("chevron", -90), iconRotated("chevron", 90));
     }
 
     /* ======================================================================
@@ -711,7 +668,8 @@ public class HomeController {
                 + themeSwatch("night", "Night", false)
                 + themeSwatch("autumn", "Autumn", false)
                 + themeSwatch("holiday", "Holiday", false)
-                + themeSwatch("winter", "Winter", false);
+                + themeSwatch("winter", "Winter", false)
+                + themeSwatch("live", "Live", false, "Colors shift automatically through the day");
 
         return """
                 <section class="dashboard-page" data-page="theme">
@@ -731,12 +689,17 @@ public class HomeController {
     }
 
     private static String themeSwatch(String key, String label, boolean selected) {
+        return themeSwatch(key, label, selected, "");
+    }
+
+    private static String themeSwatch(String key, String label, boolean selected, String title) {
+        String titleAttr = title.isBlank() ? "" : " title=\"" + escapeHtml(title) + "\"";
         return """
-                <button type="button" class="theme-swatch%s" data-theme-choice="%s">
+                <button type="button" class="theme-swatch%s" data-theme-choice="%s"%s>
                     <span class="swatch-preview" data-theme="%s" style="background:linear-gradient(135deg,var(--bg-a),var(--bg-c) 55%%,var(--sand))"></span>
                     <span class="swatch-name">%s<span class="swatch-check">%s</span></span>
                 </button>
-                """.formatted(selected ? " is-selected" : "", key, key, label, icon("check"));
+                """.formatted(selected ? " is-selected" : "", key, titleAttr, key, label, icon("check"));
     }
 
     /* ======================================================================
@@ -753,7 +716,7 @@ public class HomeController {
             Map.entry("calendar", "<rect x=\"4\" y=\"5\" width=\"16\" height=\"15\" rx=\"2\"/><path d=\"M4 9.5h16M8 3v4M16 3v4\"/>"),
             Map.entry("theme", "<path d=\"M12 3a9 9 0 1 0 0 18c1.1 0 1.9-.9 1.9-1.9 0-.5-.2-.9-.5-1.2-.3-.3-.4-.7-.4-1.1 0-.9.7-1.5 1.6-1.5H16a4 4 0 0 0 4-4c0-4.6-3.9-8.3-8-8.3Z\"/><circle cx=\"7.6\" cy=\"10.6\" r=\"1\"/><circle cx=\"10.4\" cy=\"7.4\" r=\"1\"/><circle cx=\"15\" cy=\"8\" r=\"1\"/><circle cx=\"16.4\" cy=\"12.2\" r=\"1\"/>"),
             Map.entry("logout", "<path d=\"M9 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h3\"/><path d=\"M14 8l4 4-4 4M18 12H9\"/>"),
-            Map.entry("fan", "<circle cx=\"12\" cy=\"12\" r=\"1.6\"/><path d=\"M12 12c0-3.2 1-6.4 4-7.4 2.1-.7 3.2 1 2.1 3.1-1.1 2.2-3.6 3.7-6.1 4.3Z\"/><path d=\"M12 12c-3.2 0-6.2-1.2-7.2-4.2-.7-2.1 1-3.2 3.1-2.1 2.2 1.1 3.7 3.6 4.1 6.3Z\"/><path d=\"M12 12c2.9.3 5.6 1.7 6.8 4.5.9 2-1 3-3 1.8-2-1.2-3.3-3.7-3.8-6.3Z\"/>"),
+            Map.entry("fan", "<path d=\"M10.827 16.379a6.082 6.082 0 0 1-8.618-7.002l5.412 1.45a6.082 6.082 0 0 1 7.002-8.618l-1.45 5.412a6.082 6.082 0 0 1 8.618 7.002l-5.412-1.45a6.082 6.082 0 0 1-7.002 8.618l1.45-5.412Z\"/><circle cx=\"12\" cy=\"12\" r=\"0.8\"/>"),
             Map.entry("lock", "<rect x=\"6\" y=\"11\" width=\"12\" height=\"9\" rx=\"2\"/><path d=\"M9 11V8a3 3 0 0 1 6 0v3\"/>"),
             Map.entry("unlock", "<rect x=\"6\" y=\"11\" width=\"12\" height=\"9\" rx=\"2\"/><path d=\"M9 11V8a3 3 0 0 1 5.7-1.4\"/>"),
             Map.entry("camera", "<rect x=\"3\" y=\"7\" width=\"13\" height=\"10\" rx=\"2\"/><path d=\"M16 10.2 21 8v8l-5-2.2Z\"/><circle cx=\"9\" cy=\"12\" r=\"2.3\"/>"),
@@ -771,6 +734,7 @@ public class HomeController {
             Map.entry("menu", "<path d=\"M5 7h14M5 12h14M5 17h14\"/>"),
             Map.entry("waves", "<path d=\"M2 15c1.6-1.8 3.4-1.8 5 0s3.4 1.8 5 0 3.4-1.8 5 0 3.4 1.8 5 0\"/><path d=\"M2 19c1.6-1.8 3.4-1.8 5 0s3.4 1.8 5 0 3.4-1.8 5 0 3.4 1.8 5 0\"/>"),
             Map.entry("check", "<path d=\"M5 12.5l4.5 4.5L19 7\"/>"),
+            Map.entry("close", "<path d=\"M6 6l12 12M18 6 6 18\"/>"),
             Map.entry("plus", "<path d=\"M12 5v14M5 12h14\"/>"),
             Map.entry("minus", "<path d=\"M5 12h14\"/>"),
             Map.entry("music", "<path d=\"M9 18V5.2L20 3v12.8\"/><circle cx=\"6.5\" cy=\"18\" r=\"2.5\"/><circle cx=\"17.5\" cy=\"15.8\" r=\"2.5\"/>"),
