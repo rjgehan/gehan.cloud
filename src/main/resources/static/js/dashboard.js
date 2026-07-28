@@ -500,7 +500,11 @@
     });
 
     /* ---- Today ticker (cycles only if more than one event) ---- */
-    document.querySelectorAll("[data-today-ticker]").forEach((ticker) => {
+    function wireTodayTicker(ticker) {
+        if (ticker.dataset.tickerTimer) {
+            clearInterval(Number(ticker.dataset.tickerTimer));
+            delete ticker.dataset.tickerTimer;
+        }
         const slides = [...ticker.querySelectorAll(".today-slide")];
         if (slides.length <= 1) {
             return;
@@ -510,12 +514,59 @@
             index = 0;
             slides[0].classList.add("is-active");
         }
-        setInterval(() => {
+        const timer = setInterval(() => {
             slides[index].classList.remove("is-active");
             index = (index + 1) % slides.length;
             slides[index].classList.add("is-active");
         }, 4000);
-    });
+        ticker.dataset.tickerTimer = String(timer);
+    }
+
+    function relativeDayLabel(dateStr) {
+        const [y, m, d] = dateStr.split("-").map(Number);
+        const date = new Date(y, m - 1, d);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const diffDays = Math.round((date - today) / 86400000);
+        if (diffDays === 1) {
+            return "Tomorrow";
+        }
+        if (diffDays > 1 && diffDays < 7) {
+            return date.toLocaleDateString([], { weekday: "long" });
+        }
+        return date.toLocaleDateString([], { month: "short", day: "numeric" });
+    }
+
+    function todaySlidesHtml(events, titlePrefix, noteSuffix) {
+        return events.map((e, i) =>
+            `<div class="today-slide${i === 0 ? " is-active" : ""}">` +
+            `<span class="stat-value">${titlePrefix}${e.title}</span>` +
+            `<span class="stat-note">${e.time}${noteSuffix}</span></div>`
+        ).join("");
+    }
+
+    function renderTodayTicker() {
+        const ticker = document.querySelector("[data-today-ticker]");
+        if (!ticker) {
+            return;
+        }
+        const todayIso = calIso(new Date());
+        const todayEvents = CAL_EVENTS[todayIso] || [];
+        if (todayEvents.length > 0) {
+            ticker.innerHTML = todaySlidesHtml(todayEvents, "", "");
+            wireTodayTicker(ticker);
+            return;
+        }
+
+        const upcomingDate = Object.keys(CAL_EVENTS).filter((date) => date > todayIso).sort()[0];
+        if (upcomingDate) {
+            ticker.innerHTML = todaySlidesHtml(CAL_EVENTS[upcomingDate], "Next: ", ` &middot; ${relativeDayLabel(upcomingDate)}`);
+            wireTodayTicker(ticker);
+            return;
+        }
+
+        ticker.innerHTML = `<div class="today-slide is-active"><span class="stat-value">Nothing planned</span></div>`;
+    }
 
     /* ---- Live weather (fetched from /api/weather) ---- */
     const WX_ICON_PATHS = {
@@ -759,32 +810,32 @@
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     }
 
-    // Placeholder events keyed by ISO date, expressed relative to today (not wired to a real calendar yet).
+    // Events keyed by ISO date, loaded from the family's iCloud calendar via /api/calendar.
     const CAL_EVENTS = {};
-    (function seedCalEvents() {
-        const today = new Date();
-        const addDays = (n) => {
-            const d = new Date(today);
-            d.setDate(d.getDate() + n);
-            return d;
-        };
-        const add = (date, time, title, initial, color) => {
-            const key = calIso(date);
-            (CAL_EVENTS[key] = CAL_EVENTS[key] || []).push({ time, title, initial, color });
-        };
-        const dow = today.getDay();
-        const satOffset = (6 - dow + 7) % 7;
-        const sunOffset = dow === 0 ? 0 : satOffset + 1;
 
-        add(today, "9:00 AM", "Beach Cleanup", "M", "#75d4f2");
-        add(today, "12:30 PM", "Grocery Pickup", "D", "#d9bd79");
-        add(today, "6:00 PM", "Family Dinner", "All", "#9be29b");
-        add(addDays(1), "8:00 AM", "Surf Lesson", "K", "#f2a65a");
-        add(addDays(1), "2:00 PM", "Dock Maintenance", "D", "#d9bd79");
-        add(addDays(satOffset), "10:00 AM", "Farmers Market", "M", "#75d4f2");
-        add(addDays(satOffset), "7:00 PM", "Game Night", "All", "#9be29b");
-        add(addDays(sunOffset), "9:00 AM", "Boat Trip", "All", "#9be29b");
-    })();
+    function loadCalendarEvents() {
+        fetch("/api/calendar")
+            .then((res) => {
+                if (!res.ok) throw new Error("calendar request failed");
+                return res.json();
+            })
+            .then((events) => {
+                Object.keys(CAL_EVENTS).forEach((key) => delete CAL_EVENTS[key]);
+                events.forEach((e) => {
+                    (CAL_EVENTS[e.date] = CAL_EVENTS[e.date] || []).push({
+                        time: e.time,
+                        title: e.title,
+                        initial: e.initial,
+                        color: e.color,
+                    });
+                });
+                calRender();
+                renderTodayTicker();
+            })
+            .catch(() => {
+                // keep showing whatever was last successfully loaded
+            });
+    }
 
     const calToday = new Date();
     const calState = {
@@ -804,6 +855,8 @@
         }
         return `${calState.decadeStart}–${calState.decadeStart + 11}`;
     }
+
+    const MAX_CELL_EVENTS = 2;
 
     function buildMonthCells(year, month) {
         const todayIso = calIso(new Date());
@@ -836,15 +889,16 @@
             const isToday = cellIso === todayIso;
             const isSelected = cellIso === calState.selected;
             const events = CAL_EVENTS[cellIso] || [];
-            const pill = events.length
-                ? `<span class="cal-event-pill" style="background:${events[0].color}22;color:${events[0].color}">` +
-                  (events.length > 1 ? `${events[0].title} +${events.length - 1}` : events[0].title) +
-                  `</span>`
+            const pills = events.slice(0, MAX_CELL_EVENTS)
+                .map((e) => `<span class="cal-event-pill" style="background:${e.color}22;color:${e.color}">${e.title}</span>`)
+                .join("");
+            const more = events.length > MAX_CELL_EVENTS
+                ? `<span class="cal-event-more">+${events.length - MAX_CELL_EVENTS} more</span>`
                 : "";
             html += `<div class="cal-day${isOutside ? " is-outside" : ""}${isToday ? " is-today" : ""}${isSelected ? " is-selected" : ""}"` +
                 ` data-cal-day="${cellDate}" data-cal-month="${cellMonth}" data-cal-year="${cellYear}">` +
                 `<span class="cal-day-num">${cellDate}</span>` +
-                `<span class="cal-day-events">${pill}</span></div>`;
+                `<span class="cal-day-events">${pills}${more}</span></div>`;
         }
         return html;
     }
@@ -1047,4 +1101,6 @@
 
     calRender();
     setInterval(calRender, 5 * 60 * 1000);
+    loadCalendarEvents();
+    setInterval(loadCalendarEvents, 15 * 60 * 1000);
 })();

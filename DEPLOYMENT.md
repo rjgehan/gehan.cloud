@@ -49,3 +49,38 @@ No API keys are required, but the deploy host needs outbound internet access to 
 
 The location is currently hardcoded for a specific beach house (Manasquan, NJ) as constants in `WeatherService.java` (`LAT`/`LON`, `MARINE_LAT`/`MARINE_LON`, `NOAA_STATION`). Reusing this project for a different location means updating those constants and finding the nearest NOAA tide station ID for the new coordinates.
 
+## Calendar (iCloud)
+
+The Calendar page reads events from a private iCloud calendar over CalDAV. This is opt-in: if the
+credentials below aren't set, `GET /api/calendar` just returns an empty list and the calendar page
+shows no events.
+
+1. Generate an app-specific password at [appleid.apple.com](https://appleid.apple.com) → Sign-In and
+   Security → App-Specific Passwords. Apple's CalDAV endpoint doesn't accept your normal Apple ID
+   password for third-party apps.
+2. Set:
+
+```text
+APP_ICLOUD_USERNAME=<your Apple ID email>
+APP_ICLOUD_APP_PASSWORD=<the generated app-specific password>
+```
+
+3. Optionally, restrict which calendars show up on the dashboard (useful if your iCloud account has
+   a work calendar mixed in with the family one). Comma-separate the exact calendar display names:
+
+```text
+APP_ICLOUD_CALENDARS=Family,Kids
+```
+
+Leaving `APP_ICLOUD_CALENDARS` unset pulls events from every calendar on the account.
+
+`CalendarService.java` handles CalDAV discovery (principal → calendar-home-set → calendar list),
+fetches events in a rolling window (7 days back, 60 days forward), and caches results for 15
+minutes. Discovery itself (which server partition and calendar URLs to use) is cached for a day
+since it rarely changes. The deploy host needs outbound access to `caldav.icloud.com` (Apple
+redirects to a specific `pNN-caldav.icloud.com` partition per account).
+
+Each event's color-coded avatar (the colored initial in the day popup) is derived from a hash of
+the event title, not tied to a specific calendar or family member — there's no concept of
+per-person calendars here, just a stable, repeatable color per event name.
+

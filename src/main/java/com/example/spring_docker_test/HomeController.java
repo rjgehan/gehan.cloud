@@ -252,9 +252,7 @@ public class HomeController {
                                 <span class="stat-icon-badge">%s</span>
                                 <div class="stat-body">
                                     <span class="stat-label">Today</span>
-                                    <div class="today-ticker" data-today-ticker>
-                                        %s
-                                    </div>
+                                    <div class="today-ticker" data-today-ticker></div>
                                 </div>
                             </div>
                         </div>
@@ -269,22 +267,7 @@ public class HomeController {
                         <path class="wave-front" d="M0,55 C120,30 220,65 340,45 C460,25 560,60 680,40 C720,32 760,42 800,38 L800,80 L0,80 Z"/>
                     </svg>
                 </section>
-                """.formatted(icon("weather", "wx-icon"), icon("weather"), icon("waves"), icon("calendar"), todaySlides());
-    }
-
-    private static String todaySlides() {
-        return todaySlide("Beach Cleanup", "9:00 AM", true)
-                + todaySlide("Grocery Pickup", "12:30 PM", false)
-                + todaySlide("Family Dinner", "6:00 PM", false);
-    }
-
-    private static String todaySlide(String title, String time, boolean active) {
-        return """
-                <div class="today-slide%s">
-                    <span class="stat-value">%s</span>
-                    <span class="stat-note">%s</span>
-                </div>
-                """.formatted(active ? " is-active" : "", title, time);
+                """.formatted(icon("weather", "wx-icon"), icon("weather"), icon("waves"), icon("calendar"));
     }
 
     /* ======================================================================

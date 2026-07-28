@@ -7,6 +7,8 @@ import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
@@ -14,6 +16,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 @Service
 public class WeatherService {
+
+    private static final Logger log = LoggerFactory.getLogger(WeatherService.class);
 
     private static final double LAT = 40.12623;
     private static final double LON = -74.0493;
@@ -57,8 +61,10 @@ public class WeatherService {
             if (json != null) {
                 cachedRadarJson = json;
                 radarCachedAt = Instant.now();
+                log.info("Refreshed radar frames from api.librewxr.net ({} bytes)", json.length());
             }
         } catch (RuntimeException e) {
+            log.warn("Failed to fetch radar frames from api.librewxr.net: {}", e.toString(), e);
             // serve the last-known-good frames (if any) rather than fail the whole radar card
         }
         return cachedRadarJson == null ? "{}" : cachedRadarJson;
