@@ -10,6 +10,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -224,6 +225,8 @@ public class CalendarService {
             Instant rangeStart = now.minusDays(DAYS_BACK).toInstant();
             Instant rangeEnd = now.plusDays(DAYS_FORWARD).toInstant();
             Period<Instant> window = new Period<>(rangeStart, rangeEnd);
+            LocalDate windowStartDate = rangeStart.atZone(LOCAL_ZONE).toLocalDate();
+            LocalDate windowEndDate = rangeEnd.atZone(LOCAL_ZONE).toLocalDate();
 
             for (Object o : calendar.getComponents("VEVENT")) {
                 VEvent event = (VEvent) o;
@@ -235,14 +238,35 @@ public class CalendarService {
 
                 Set<Period<Temporal>> occurrences = event.calculateRecurrenceSet(window);
                 for (Period<Temporal> p : occurrences) {
-                    ZonedDateTime occurrence = toZonedDateTime(p.getStart());
-                    events.add(new CalEvent(
-                            occurrence.format(EVENT_DATE),
-                            allDay ? "All Day" : occurrence.format(EVENT_TIME),
-                            allDay ? "0000" : occurrence.format(DateTimeFormatter.ofPattern("HHmm")),
-                            title,
-                            initialFor(title),
-                            colorFor(title)));
+                    ZonedDateTime occurrenceStart = toZonedDateTime(p.getStart());
+                    ZonedDateTime occurrenceEnd = toZonedDateTime(p.getEnd());
+
+                    LocalDate startDate = occurrenceStart.toLocalDate();
+                    LocalDate endDate = occurrenceEnd.toLocalDate();
+                    // iCal end times are exclusive: an all-day event's DTEND (or a timed event that
+                    // happens to end exactly at midnight) points at the day *after* the last day it
+                    // actually covers, so step that back one day before spanning the range.
+                    boolean exclusiveEnd = allDay
+                            || (occurrenceEnd.toLocalTime().equals(LocalTime.MIDNIGHT) && occurrenceEnd.isAfter(occurrenceStart));
+                    if (exclusiveEnd) {
+                        endDate = endDate.minusDays(1);
+                    }
+                    if (endDate.isBefore(startDate)) {
+                        endDate = startDate;
+                    }
+
+                    LocalDate loopStart = startDate.isBefore(windowStartDate) ? windowStartDate : startDate;
+                    LocalDate loopEnd = endDate.isAfter(windowEndDate) ? windowEndDate : endDate;
+                    for (LocalDate day = loopStart; !day.isAfter(loopEnd); day = day.plusDays(1)) {
+                        boolean isFirstDay = day.equals(startDate);
+                        events.add(new CalEvent(
+                                day.format(EVENT_DATE),
+                                allDay || !isFirstDay ? "All Day" : occurrenceStart.format(EVENT_TIME),
+                                allDay || !isFirstDay ? "0000" : occurrenceStart.format(DateTimeFormatter.ofPattern("HHmm")),
+                                title,
+                                initialFor(title),
+                                colorFor(title)));
+                    }
                 }
             }
         } catch (Exception e) {

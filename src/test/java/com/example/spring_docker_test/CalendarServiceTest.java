@@ -63,6 +63,56 @@ class CalendarServiceTest {
     }
 
     @Test
+    void multiDayAllDayEventShowsOnEveryDayItSpans() {
+        // iCal all-day DTEND is exclusive, so Aug 1 - Aug 4 covers Aug 1, 2, 3 (not 4).
+        String ics = """
+                BEGIN:VCALENDAR
+                VERSION:2.0
+                PRODID:-//Test//Test//EN
+                BEGIN:VEVENT
+                UID:trip@example.com
+                DTSTAMP:20260101T000000Z
+                DTSTART;VALUE=DATE:20260801
+                DTEND;VALUE=DATE:20260804
+                SUMMARY:Squan Squad Weekend
+                END:VEVENT
+                END:VCALENDAR
+                """;
+
+        List<CalendarService.CalEvent> events = service.parseIcs(ics, now);
+
+        assertThat(events).extracting(CalendarService.CalEvent::date)
+                .containsExactly("2026-08-01", "2026-08-02", "2026-08-03");
+        assertThat(events).allMatch(e -> e.time().equals("All Day"));
+        assertThat(events).allMatch(e -> e.title().equals("Squan Squad Weekend"));
+    }
+
+    @Test
+    void multiDayTimedEventShowsOnEveryDayItSpansWithTimeOnlyOnFirstDay() {
+        String ics = """
+                BEGIN:VCALENDAR
+                VERSION:2.0
+                PRODID:-//Test//Test//EN
+                BEGIN:VEVENT
+                UID:camping@example.com
+                DTSTAMP:20260101T000000Z
+                DTSTART:20260801T180000Z
+                DTEND:20260803T140000Z
+                SUMMARY:Camping Trip
+                END:VEVENT
+                END:VCALENDAR
+                """;
+
+        List<CalendarService.CalEvent> events = service.parseIcs(ics, now);
+
+        assertThat(events).extracting(CalendarService.CalEvent::date)
+                .containsExactly("2026-08-01", "2026-08-02", "2026-08-03");
+        assertThat(events.get(0).time()).isEqualTo("2:00 PM");
+        assertThat(events.get(1).time()).isEqualTo("All Day");
+        assertThat(events.get(2).time()).isEqualTo("All Day");
+    }
+
+    @Test
     void skipsMalformedIcsInsteadOfThrowing() {
         List<CalendarService.CalEvent> events = service.parseIcs("not a valid calendar", now);
 
