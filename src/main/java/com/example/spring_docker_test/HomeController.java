@@ -12,8 +12,6 @@ import org.springframework.web.bind.annotation.ResponseBody;
 @Controller
 public class HomeController {
 
-    private static final String BEACH_CAM_URL = "https://njbeachcams.com/central-new-jersey/manasquan-inlet-cam/";
-
     private final String accessUsername;
 
     public HomeController(@Value("${app.security.username}") String accessUsername) {
@@ -183,7 +181,6 @@ public class HomeController {
                 + navItem("weather", "Weather", false)
                 + navItem("lights", "Lights", false)
                 + navItem("security", "Cameras", false, "camera")
-                + navLinkItem(BEACH_CAM_URL, "Beach Cam", "waves")
                 + navItem("media", "Music", false)
                 + navItem("calendar", "Calendar", false)
                 + navItem("kitchen", "Kitchen", false)
@@ -198,14 +195,6 @@ public class HomeController {
         return """
                 <button type="button" class="nav-item%s" data-target="%s"><span class="nav-icon-badge">%s</span><span class="nav-label">%s</span></button>
                 """.formatted(active ? " is-active" : "", target, icon(iconKey), label);
-    }
-
-    // Opens in the device's own browser (not the SPA router) so kiosk-embedded video/ad pages that
-    // refuse to render inside an iframe still work; the kiosk app is expected to let you navigate back.
-    private static String navLinkItem(String url, String label, String iconKey) {
-        return """
-                <a class="nav-item" href="%s" target="_blank" rel="noopener"><span class="nav-icon-badge">%s</span><span class="nav-label">%s</span></a>
-                """.formatted(url, icon(iconKey), label);
     }
 
     /* ======================================================================
@@ -255,14 +244,14 @@ public class HomeController {
                                 </div>
                                 <div class="uv-scale mini"><span class="uv-marker" data-wx-uv-marker></span></div>
                             </div>
-                            <a class="stat-card tint-accent" data-tide-tile href="%s" target="_blank" rel="noopener" hidden>
+                            <div class="stat-card tint-accent" data-tide-tile data-target="weather" role="button" tabindex="0" hidden>
                                 <span class="stat-icon-badge">%s</span>
                                 <div class="stat-body">
                                     <span class="stat-label">Tide</span>
                                     <span class="stat-value" data-tide-next>&mdash;</span>
                                     <span class="stat-note" data-tide-following></span>
                                 </div>
-                            </a>
+                            </div>
                             <div class="stat-card tint-sand" data-target="calendar" role="button" tabindex="0">
                                 <span class="stat-icon-badge">%s</span>
                                 <div class="stat-body">
@@ -295,7 +284,7 @@ public class HomeController {
                         </div>
                     </div>
                 </section>
-                """.formatted(icon("weather", "wx-icon"), icon("weather"), BEACH_CAM_URL, icon("waves"), icon("calendar"), icon("timer"), icon("warn"));
+                """.formatted(icon("weather", "wx-icon"), icon("weather"), icon("waves"), icon("calendar"), icon("timer"), icon("warn"));
     }
 
     /* ======================================================================
