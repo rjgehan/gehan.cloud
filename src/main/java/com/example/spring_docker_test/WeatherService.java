@@ -34,6 +34,7 @@ public class WeatherService {
     private final RestClient marineClient = RestClient.create("https://marine-api.open-meteo.com");
     private final RestClient noaaClient = RestClient.create("https://api.tidesandcurrents.noaa.gov");
     private final RestClient radarClient = RestClient.create("https://api.librewxr.net");
+    private final RestClient airQualityClient = RestClient.create("https://air-quality-api.open-meteo.com");
 
     private volatile WeatherSnapshot cached;
     private volatile Instant cachedAt = Instant.EPOCH;
@@ -75,7 +76,25 @@ public class WeatherService {
         CurrentConditions current = forecast == null ? null : toCurrent(forecast);
         List<HourPoint> hourly = forecast == null ? List.of() : toHourly(forecast);
         List<DayPoint> daily = forecast == null ? List.of() : toDaily(forecast);
-        return new WeatherSnapshot(current, hourly, daily, fetchMarine(), fetchTides());
+        return new WeatherSnapshot(current, hourly, daily, fetchMarine(), fetchTides(), fetchAirQuality());
+    }
+
+    private Integer fetchAirQuality() {
+        try {
+            AirQualityResponse resp = airQualityClient.get()
+                    .uri(b -> b.path("/v1/air-quality")
+                            .queryParam("latitude", LAT)
+                            .queryParam("longitude", LON)
+                            .queryParam("current", "us_aqi")
+                            .queryParam("timezone", "America/New_York")
+                            .build())
+                    .retrieve()
+                    .body(AirQualityResponse.class);
+            return resp == null || resp.current() == null ? null : resp.current().usAqi();
+        } catch (RuntimeException e) {
+            log.warn("Failed to fetch air quality: {}", e.toString(), e);
+            return null;
+        }
     }
 
     private OpenMeteoResponse fetchForecast() {
@@ -234,12 +253,33 @@ public class WeatherService {
             points.add(new DayPoint(
                     d.time().get(i),
                     label.icon(),
+                    label.label(),
                     hi == null ? 0 : (int) Math.round(hi),
                     lo == null ? 0 : (int) Math.round(lo),
                     uv == null ? 0 : (int) Math.round(uv),
                     d.sunrise() == null ? null : d.sunrise().get(i),
                     d.sunset() == null ? null : d.sunset().get(i),
-                    precip == null ? 0 : precip));
+                    precip == null ? 0 : precip,
+                    hourlyForDate(resp.hourly(), d.time().get(i))));
+        }
+        return points;
+    }
+
+    /** The hourly block covers all 7 forecast days in one flat list; slice out just this date's 24 hours. */
+    private static List<HourPoint> hourlyForDate(OpenMeteoHourly h, String date) {
+        if (h == null || h.time() == null) {
+            return List.of();
+        }
+        List<HourPoint> points = new ArrayList<>();
+        for (int i = 0; i < h.time().size(); i++) {
+            if (!h.time().get(i).startsWith(date)) {
+                continue;
+            }
+            Double temp = h.temperature() == null ? null : h.temperature().get(i);
+            Integer code = h.weatherCode() == null ? null : h.weatherCode().get(i);
+            Integer precip = h.precipProbability() == null ? null : h.precipProbability().get(i);
+            WeatherLabel label = describeCode(code);
+            points.add(new HourPoint(h.time().get(i), temp == null ? 0 : (int) Math.round(temp), label.icon(), precip == null ? 0 : precip));
         }
         return points;
     }
@@ -302,6 +342,12 @@ public class WeatherService {
             @JsonProperty("precipitation_probability_max") List<Integer> precipProbabilityMax) {
     }
 
+    private record AirQualityResponse(@JsonProperty("current") AirQualityCurrent current) {
+    }
+
+    private record AirQualityCurrent(@JsonProperty("us_aqi") Integer usAqi) {
+    }
+
     private record MarineResponse(@JsonProperty("current") MarineCurrent current) {
     }
 
@@ -324,7 +370,8 @@ public class WeatherService {
             List<HourPoint> hourly,
             List<DayPoint> daily,
             Marine marine,
-            List<TidePoint> tides) {
+            List<TidePoint> tides,
+            Integer aqi) {
     }
 
     public record CurrentConditions(
@@ -334,7 +381,9 @@ public class WeatherService {
     public record HourPoint(String time, int tempF, String icon, int precipChance) {
     }
 
-    public record DayPoint(String date, String icon, int hiF, int loF, int uvMax, String sunrise, String sunset, int precipChance) {
+    public record DayPoint(
+            String date, String icon, String label, int hiF, int loF, int uvMax,
+            String sunrise, String sunset, int precipChance, List<HourPoint> hourly) {
     }
 
     public record Marine(double waveFt, int waterTempF) {

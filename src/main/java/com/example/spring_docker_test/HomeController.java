@@ -12,6 +12,8 @@ import org.springframework.web.bind.annotation.ResponseBody;
 @Controller
 public class HomeController {
 
+    private static final String BEACH_CAM_URL = "https://njbeachcams.com/central-new-jersey/manasquan-inlet-cam/";
+
     private final String accessUsername;
 
     public HomeController(@Value("${app.security.username}") String accessUsername) {
@@ -24,10 +26,10 @@ public class HomeController {
         String pages = homePage()
                 + weatherPage()
                 + lightsPage()
-                + climatePage()
                 + securityPage()
                 + mediaPage()
                 + calendarPage()
+                + kitchenPage()
                 + themePage();
 
         String body = """
@@ -180,17 +182,30 @@ public class HomeController {
         return navItem("home", "Home", true)
                 + navItem("weather", "Weather", false)
                 + navItem("lights", "Lights", false)
-                + navItem("climate", "Climate", false)
-                + navItem("security", "Security", false)
-                + navItem("media", "Media", false)
+                + navItem("security", "Cameras", false, "camera")
+                + navLinkItem(BEACH_CAM_URL, "Beach Cam", "waves")
+                + navItem("media", "Music", false)
                 + navItem("calendar", "Calendar", false)
+                + navItem("kitchen", "Kitchen", false)
                 + navItem("theme", "Theme", false);
     }
 
     private static String navItem(String target, String label, boolean active) {
+        return navItem(target, label, active, target);
+    }
+
+    private static String navItem(String target, String label, boolean active, String iconKey) {
         return """
                 <button type="button" class="nav-item%s" data-target="%s"><span class="nav-icon-badge">%s</span><span class="nav-label">%s</span></button>
-                """.formatted(active ? " is-active" : "", target, icon(target), label);
+                """.formatted(active ? " is-active" : "", target, icon(iconKey), label);
+    }
+
+    // Opens in the device's own browser (not the SPA router) so kiosk-embedded video/ad pages that
+    // refuse to render inside an iframe still work; the kiosk app is expected to let you navigate back.
+    private static String navLinkItem(String url, String label, String iconKey) {
+        return """
+                <a class="nav-item" href="%s" target="_blank" rel="noopener"><span class="nav-icon-badge">%s</span><span class="nav-label">%s</span></a>
+                """.formatted(url, icon(iconKey), label);
     }
 
     /* ======================================================================
@@ -240,14 +255,14 @@ public class HomeController {
                                 </div>
                                 <div class="uv-scale mini"><span class="uv-marker" data-wx-uv-marker></span></div>
                             </div>
-                            <div class="stat-card tint-accent" data-tide-tile data-target="weather" role="button" tabindex="0" hidden>
+                            <a class="stat-card tint-accent" data-tide-tile href="%s" target="_blank" rel="noopener" hidden>
                                 <span class="stat-icon-badge">%s</span>
                                 <div class="stat-body">
                                     <span class="stat-label">Tide</span>
                                     <span class="stat-value" data-tide-next>&mdash;</span>
                                     <span class="stat-note" data-tide-following></span>
                                 </div>
-                            </div>
+                            </a>
                             <div class="stat-card tint-sand" data-target="calendar" role="button" tabindex="0">
                                 <span class="stat-icon-badge">%s</span>
                                 <div class="stat-body">
@@ -266,8 +281,21 @@ public class HomeController {
                         <path class="wave-back" d="M0,40 C100,10 200,60 300,35 C400,10 500,55 600,30 C700,10 750,35 800,25 L800,80 L0,80 Z"/>
                         <path class="wave-front" d="M0,55 C120,30 220,65 340,45 C460,25 560,60 680,40 C720,32 760,42 800,38 L800,80 L0,80 Z"/>
                     </svg>
+
+                    <div class="home-timers-widget" data-home-timers hidden>
+                        <div class="home-timers-head"><span class="icon-badge">%s</span><span>Timers</span></div>
+                        <div class="home-timers-list"></div>
+                    </div>
+
+                    <div class="home-air-alert" data-home-air-alert hidden>
+                        <span class="icon-badge">%s</span>
+                        <div class="home-air-alert-body">
+                            <span class="home-air-alert-title" data-home-air-title></span>
+                            <span class="home-air-alert-note" data-home-air-note></span>
+                        </div>
+                    </div>
                 </section>
-                """.formatted(icon("weather", "wx-icon"), icon("weather"), icon("waves"), icon("calendar"));
+                """.formatted(icon("weather", "wx-icon"), icon("weather"), BEACH_CAM_URL, icon("waves"), icon("calendar"), icon("timer"), icon("warn"));
     }
 
     /* ======================================================================
@@ -307,6 +335,9 @@ public class HomeController {
                                     <span>%sWater <strong data-marine-water>&mdash;</strong></span>
                                     <span>%sWaves <strong data-marine-wave>&mdash;</strong></span>
                                 </div>
+                                <div class="wx-sidebar-marine wx-sidebar-aqi-row">
+                                    <span>Air Quality <strong data-wx-aqi>&mdash;</strong></span>
+                                </div>
                             </div>
                         </div>
 
@@ -321,7 +352,7 @@ public class HomeController {
                                     <div class="radar-map" data-radar-map></div>
                                     <div class="radar-overlay-bar">
                                         <button type="button" class="icon-button" data-radar-play title="Play/Pause">%s</button>
-                                        <input type="range" min="0" max="0" value="0" data-radar-slider>
+                                        <input type="range" min="0" max="0" value="0" step="any" data-radar-slider>
                                         <span class="radar-time-overlay" data-radar-time></span>
                                     </div>
                                 </div>
@@ -384,144 +415,27 @@ public class HomeController {
     }
 
     /* ======================================================================
-       Climate — outdoor fridge monitor + main thermostat
-       ====================================================================== */
-
-    private static String climatePage() {
-        return """
-                <section class="dashboard-page" data-page="climate">
-                    <div class="page-head">
-                        <div>
-                            <p class="eyebrow">Climate</p>
-                            <h1>Temperature</h1>
-                        </div>
-                        <span class="page-sub">Not yet connected &middot; will control Home Assistant devices</span>
-                    </div>
-                    <div class="tile-grid" style="grid-template-columns:repeat(auto-fit,minmax(300px,1fr))">
-                        <div class="card">
-                            <div class="card-head">
-                                <h3>Outdoor Fridge</h3>
-                                <span class="icon-badge">%s</span>
-                            </div>
-                            <div class="fridge-readout">
-                                <span class="big-temp">38&deg;F</span>
-                                <span class="pill pill-good">Normal</span>
-                            </div>
-                            <p class="page-sub">24h range 36&deg;&ndash;41&deg; &middot; alert above 45&deg;F</p>
-                            <svg class="sparkline" viewBox="0 0 200 56" preserveAspectRatio="none">
-                                <path class="spark-fill" d="M0,34 C20,30 40,38 60,32 C80,24 100,36 120,30 C140,22 160,28 180,24 L200,26 L200,56 L0,56 Z"/>
-                                <path d="M0,34 C20,30 40,38 60,32 C80,24 100,36 120,30 C140,22 160,28 180,24 L200,26"/>
-                            </svg>
-                        </div>
-                        <div class="card">
-                            <div class="card-head">
-                                <h3>Main Thermostat</h3>
-                                <span class="icon-badge">%s</span>
-                            </div>
-                            <div class="thermo-dial">
-                                <div class="thermo-ring" data-thermo-ring="main" style="--pct:56">
-                                    <div class="thermo-readout">
-                                        <strong data-stepper-target="main">74&deg;</strong>
-                                        <span>Target</span>
-                                    </div>
-                                </div>
-                                <div>
-                                    <div class="stepper" data-stepper="main" data-min="60" data-max="85" data-value="74" data-unit="&deg;">
-                                        <button type="button" data-step="down">%s</button>
-                                        <span class="stepper-value" data-stepper-target="main">74&deg;</span>
-                                        <button type="button" data-step="up">%s</button>
-                                    </div>
-                                    <p class="page-sub" style="margin-top:10px">Currently 76&deg;F inside</p>
-                                </div>
-                            </div>
-                            <div class="segmented" data-segmented style="margin-top:16px">
-                                <button type="button" class="is-selected">%sAuto</button>
-                                <button type="button">%sCool</button>
-                                <button type="button">%sHeat</button>
-                                <button type="button">%sOff</button>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-                """.formatted(
-                        icon("climate"), icon("climate"),
-                        icon("minus"), icon("plus"),
-                        icon("auto"), icon("snow"), icon("flame"), icon("power"));
-    }
-
-    /* ======================================================================
        Security — cameras, locks, garage, alarm
        ====================================================================== */
 
     private static String securityPage() {
-        String cameras = cameraTile("Driveway") + cameraTile("Front Door") + cameraTile("Back Deck") + cameraTile("Dock Path");
-        String locks = lockItem("Front Door", true) + lockItem("Back Door", true) + lockItem("Slider", false);
-
         return """
                 <section class="dashboard-page" data-page="security">
-                    <div class="page-head">
-                        <div>
-                            <p class="eyebrow">Security</p>
-                            <h1>Cameras &amp; Locks</h1>
+                    <div class="card camera-card">
+                        <div class="camera-grid" data-camera-grid>
+                            <p class="modal-empty">No cameras configured.</p>
                         </div>
-                        <span class="page-sub">Not yet connected &middot; will control Home Assistant devices</span>
                     </div>
-                    <div class="card">
-                        <div class="card-head"><h3>Cameras</h3></div>
-                        <div class="camera-grid">%s</div>
-                    </div>
-                    <div class="tile-grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr))">
-                        <div class="card">
-                            <div class="card-head"><h3>Doors</h3></div>
-                            <div class="lock-grid">%s</div>
+                    <div class="camera-viewer" data-camera-viewer hidden>
+                        <div class="camera-viewer-head">
+                            <span data-camera-viewer-title></span>
+                            <span class="camera-viewer-status" data-camera-viewer-status>Live</span>
+                            <button type="button" class="icon-button" data-camera-viewer-close title="Close">%s</button>
                         </div>
-                        <div class="card">
-                            <div class="card-head">
-                                <h3>Garage</h3>
-                                <span class="icon-badge">%s</span>
-                            </div>
-                            <p class="page-sub" style="margin-bottom:14px">Currently closed</p>
-                            <div class="segmented" data-segmented>
-                                <button type="button" class="is-selected">Close</button>
-                                <button type="button">Open</button>
-                            </div>
-                        </div>
-                        <div class="card">
-                            <div class="card-head">
-                                <h3>Alarm</h3>
-                                <span class="icon-badge">%s</span>
-                            </div>
-                            <div class="segmented" data-segmented>
-                                <button type="button">Off</button>
-                                <button type="button" class="is-selected">Home</button>
-                                <button type="button">Away</button>
-                            </div>
-                        </div>
+                        <img class="camera-viewer-img" data-camera-viewer-img alt="">
                     </div>
                 </section>
-                """.formatted(cameras, locks, icon("garage"), icon("security"));
-    }
-
-    private static String cameraTile(String label) {
-        return """
-                <div class="camera-tile" data-toggle-active tabindex="0" role="button" aria-label="View %s camera">
-                    <span class="cam-icon">%s</span>
-                    <span class="cam-live">Live</span>
-                    <span class="cam-label">%s</span>
-                </div>
-                """.formatted(label, icon("camera"), label);
-    }
-
-    private static String lockItem(String label, boolean locked) {
-        return """
-                <div class="lock-item">
-                    <span>%s</span>
-                    <button type="button" class="icon-button lock-toggle %s" data-toggle-active title="Toggle lock">%s</button>
-                    <span class="pill %s">%s</span>
-                </div>
-                """.formatted(
-                        label, locked ? "is-active" : "", icon(locked ? "lock" : "unlock"),
-                        locked ? "pill-good" : "pill-warn", locked ? "Locked" : "Unlocked");
+                """.formatted(icon("close"));
     }
 
     /* ======================================================================
@@ -540,56 +454,39 @@ public class HomeController {
                 <section class="dashboard-page" data-page="media">
                     <div class="page-head">
                         <div>
-                            <p class="eyebrow">Media &amp; Scenes</p>
-                            <h1>Entertainment</h1>
+                            <p class="eyebrow">Music &amp; Scenes</p>
+                            <h1>Music</h1>
                         </div>
                         <span class="page-sub">Not yet connected &middot; will control Home Assistant devices</span>
                     </div>
-                    <div class="tile-grid" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr))">
-                        <div class="card remote-card">
-                            <div class="card-head" style="width:100%%"><h3>Apple TV</h3><span class="icon-badge">%s</span></div>
-                            <div class="dpad">
-                                <button type="button" class="dpad-up" data-toggle-active>%s</button>
-                                <button type="button" class="dpad-left" data-toggle-active>%s</button>
-                                <button type="button" class="dpad-select" data-toggle-active>Select</button>
-                                <button type="button" class="dpad-right" data-toggle-active>%s</button>
-                                <button type="button" class="dpad-down" data-toggle-active>%s</button>
-                            </div>
-                            <div class="remote-buttons">
-                                <button type="button" class="icon-button" data-toggle-active title="Menu">%s</button>
-                                <button type="button" class="icon-button" data-toggle-active title="Play/Pause">%s</button>
-                                <button type="button" class="icon-button" data-toggle-active title="Power">%s</button>
+                    <div class="card">
+                        <div class="card-head"><h3>Music Assistant</h3><span class="icon-badge">%s</span></div>
+                        <div class="now-playing">
+                            <div class="album-art">%s</div>
+                            <div>
+                                <div class="track-title">Coastal Breeze</div>
+                                <div class="track-artist">Weekend Radio &middot; Living Room</div>
+                                <div class="progress-bar"><span style="width:38%%"></span></div>
                             </div>
                         </div>
-                        <div class="card">
-                            <div class="card-head"><h3>Music Assistant</h3><span class="icon-badge">%s</span></div>
-                            <div class="now-playing">
-                                <div class="album-art">%s</div>
-                                <div>
-                                    <div class="track-title">Coastal Breeze</div>
-                                    <div class="track-artist">Weekend Radio &middot; Living Room</div>
-                                    <div class="progress-bar"><span style="width:38%%"></span></div>
-                                </div>
+                        <div class="transport-row">
+                            <button type="button" class="icon-button" data-toggle-active title="Previous">%s</button>
+                            <button type="button" class="icon-button play-pause" data-play-pause title="Play/Pause">%s</button>
+                            <button type="button" class="icon-button" data-toggle-active title="Next">%s</button>
+                            <div class="slider-row" style="flex:1;margin-left:6px">
+                                <span class="slider-label">%sVolume</span>
+                                <input type="range" min="0" max="100" value="55" data-slider="music-vol">
+                                <span class="slider-value" data-slider-value="music-vol" data-unit="%%">55%%</span>
                             </div>
-                            <div class="transport-row">
-                                <button type="button" class="icon-button" data-toggle-active title="Previous">%s</button>
-                                <button type="button" class="icon-button play-pause" data-play-pause title="Play/Pause">%s</button>
-                                <button type="button" class="icon-button" data-toggle-active title="Next">%s</button>
-                                <div class="slider-row" style="flex:1;margin-left:6px">
-                                    <span class="slider-label">%sVolume</span>
-                                    <input type="range" min="0" max="100" value="55" data-slider="music-vol">
-                                    <span class="slider-value" data-slider-value="music-vol" data-unit="%%">55%%</span>
-                                </div>
-                            </div>
-                            <div class="control-row" style="margin-top:16px">
-                                <span class="row-label">Room</span>
-                                <select>
-                                    <option>Living Room</option>
-                                    <option>Primary Suite</option>
-                                    <option>Porch</option>
-                                    <option>Whole House</option>
-                                </select>
-                            </div>
+                        </div>
+                        <div class="control-row" style="margin-top:16px">
+                            <span class="row-label">Room</span>
+                            <select>
+                                <option>Living Room</option>
+                                <option>Primary Suite</option>
+                                <option>Porch</option>
+                                <option>Whole House</option>
+                            </select>
                         </div>
                     </div>
                     <div class="card">
@@ -598,9 +495,6 @@ public class HomeController {
                     </div>
                 </section>
                 """.formatted(
-                        icon("tv"),
-                        iconRotated("chevron", 0), iconRotated("chevron", -90), iconRotated("chevron", 90), iconRotated("chevron", 180),
-                        icon("menu"), icon("play"), icon("power"),
                         icon("music"), icon("music"),
                         icon("prev"), icon("pause"), icon("next"), icon("volume"),
                         scenes);
@@ -637,6 +531,178 @@ public class HomeController {
                     </div>
                 </section>
                 """.formatted(iconRotated("chevron", -90), iconRotated("chevron", 90));
+    }
+
+    /* ======================================================================
+       Kitchen — timers
+       ====================================================================== */
+
+    private static String kitchenPage() {
+        String infoTiles = infoTile("beef", "Beef", infoBody(new String[][] {
+                {"Grill (steak, 1&Prime;)", "4-5 min/side"},
+                {"Pan-Sear (steak)", "3-4 min/side"},
+                {"Roast (whole)", "15 min/lb @ 325&deg;F"},
+                {"Ground (browning)", "8-10 min, no pink"},
+                {"Safe Temp", "145&deg;F steaks/roasts &middot; 160&deg;F ground"},
+        }, "Rest meat 5-10 min before slicing."))
+                + infoTile("chicken", "Chicken", infoBody(new String[][] {
+                        {"Grill (breast)", "6-8 min/side"},
+                        {"Bake (breast)", "20-25 min @ 400&deg;F"},
+                        {"Roast (whole)", "20 min/lb @ 375&deg;F"},
+                        {"Pan-Sear (thighs)", "6-7 min/side"},
+                        {"Safe Temp", "165&deg;F everywhere"},
+                }, "Pound breasts to even thickness for even cooking."))
+                + infoTile("pork", "Pork", infoBody(new String[][] {
+                        {"Grill (chop, 1&Prime;)", "4-5 min/side"},
+                        {"Roast (loin)", "20 min/lb @ 350&deg;F"},
+                        {"Pan-Sear (chop)", "3-4 min/side"},
+                        {"Bacon (stovetop)", "4-6 min, medium heat"},
+                        {"Safe Temp", "145&deg;F chops/roasts &middot; 160&deg;F ground"},
+                }, "A slight blush of pink is safe at 145&deg;F."))
+                + infoTile("eggs", "Eggs", infoBody(new String[][] {
+                        {"Soft Boil", "6 min"},
+                        {"Hard Boil", "10-12 min"},
+                        {"Scrambled", "2-3 min, low heat"},
+                        {"Fried (sunny-side)", "2-3 min"},
+                        {"Safe Temp", "160&deg;F, yolk set"},
+                }, "Add eggs to already-boiling water for easier peeling."))
+                + infoTile("pasta", "Pasta", infoBody(new String[][] {
+                        {"Fresh Pasta", "2-3 min"},
+                        {"Dried, Thin", "4-6 min"},
+                        {"Dried, Thick", "9-11 min"},
+                        {"Stuffed (ravioli)", "3-5 min, until floating"},
+                        {"Doneness", "Al dente = firm bite"},
+                }, "Salt the water generously; save a cup of pasta water."))
+                + infoTile("seafood", "Seafood", infoBody(new String[][] {
+                        {"Grill (fillet)", "4-6 min/side"},
+                        {"Bake (fillet)", "12-15 min @ 400&deg;F"},
+                        {"Pan-Sear (fillet)", "3-4 min/side"},
+                        {"Shrimp", "2-3 min, until pink"},
+                        {"Safe Temp", "145&deg;F or flakes easily"},
+                }, "Fish is done when it flakes easily with a fork."));
+
+        return """
+                <section class="dashboard-page" data-page="kitchen">
+                    <div class="kitchen-layout">
+                        <div class="kitchen-main">
+                            <div class="card kitchen-timers-card">
+                                <div class="card-head"><span class="icon-badge">%s</span></div>
+                                <div class="timer-setup">
+                                    <div class="timer-wheel-row">
+                                        <div class="timer-wheel-frame"></div>
+                                        %s
+                                        <span class="timer-wheel-unit">hr</span>
+                                        %s
+                                        <span class="timer-wheel-unit">min</span>
+                                        %s
+                                        <span class="timer-wheel-unit">sec</span>
+                                    </div>
+                                    <button type="button" class="timer-start-btn" data-timer-custom-start>Start</button>
+                                </div>
+                                <div class="timer-card-grid" data-timers-list>
+                                    <p class="modal-empty">No timers running. Set one above.</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="kitchen-side">
+                            <div class="card kitchen-info-card">
+                                <div class="info-grid" data-info-grid>
+                                    %s
+                                </div>
+                                <div class="info-detail" data-info-detail hidden>
+                                    <button type="button" class="icon-button info-back" data-info-back title="Back">%s</button>
+                                    <h4 data-info-detail-title></h4>
+                                    <div class="info-detail-body" data-info-detail-body></div>
+                                </div>
+                            </div>
+                            <div class="card kitchen-convert-card">
+                                <div class="card-head"><h3>Convert</h3></div>
+                                <div class="segmented convert-tabs" data-convert-tabs>
+                                    <button type="button" class="is-selected" data-convert-tab="volume">Volume</button>
+                                    <button type="button" data-convert-tab="weight">Weight</button>
+                                    <button type="button" data-convert-tab="temp">Temp</button>
+                                </div>
+                                %s
+                            </div>
+                        </div>
+                    </div>
+                </section>
+                """.formatted(
+                        icon("timer"), timerWheel("hours", 24, false), timerWheel("minutes", 60, true), timerWheel("seconds", 60, true),
+                        infoTiles, iconRotated("chevron", -90),
+                        convertPanel("volume", true,
+                                new String[] {"tsp", "tbsp", "cup", "flOz", "pint", "quart", "gallon", "ml", "l"},
+                                new String[] {"tsp", "tbsp", "cup", "fl oz", "pint", "quart", "gallon", "ml", "L"},
+                                "cup", "flOz")
+                                + convertPanel("weight", false,
+                                        new String[] {"oz", "lb", "g", "kg"},
+                                        new String[] {"oz", "lb", "g", "kg"},
+                                        "oz", "g")
+                                + convertPanel("temp", false,
+                                        new String[] {"f", "c"},
+                                        new String[] {"&deg;F", "&deg;C"},
+                                        "f", "c"));
+    }
+
+    private static String infoTile(String key, String label, String body) {
+        return """
+                <button type="button" class="info-tile" data-info-open="%s" data-info-label="%s">%s</button>
+                <template data-info-template="%s">%s</template>
+                """.formatted(key, escapeHtml(label), escapeHtml(label), key, body);
+    }
+
+    private static String infoBody(String[][] rows, String tip) {
+        StringBuilder sb = new StringBuilder("<div class=\"info-rows\">");
+        for (String[] row : rows) {
+            sb.append("<div class=\"info-row\"><span>").append(row[0]).append("</span><span>").append(row[1]).append("</span></div>");
+        }
+        sb.append("</div><p class=\"info-tip\">").append(tip).append("</p>");
+        return sb.toString();
+    }
+
+    private static String convertPanel(String category, boolean active, String[] values, String[] labels, String fromDefault, String toDefault) {
+        return """
+                <div class="convert-panel" data-convert-panel="%s"%s>
+                    <div class="convert-row">
+                        <input type="number" value="1" data-convert-input>
+                        <select data-convert-from>%s</select>
+                    </div>
+                    <div class="convert-equals">=</div>
+                    <div class="convert-row">
+                        <output class="convert-result" data-convert-result></output>
+                        <select data-convert-to>%s</select>
+                    </div>
+                </div>
+                """.formatted(
+                        category, active ? "" : " hidden",
+                        convertOptions(values, labels, fromDefault),
+                        convertOptions(values, labels, toDefault));
+    }
+
+    private static String convertOptions(String[] values, String[] labels, String selected) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < values.length; i++) {
+            String sel = values[i].equals(selected) ? " selected" : "";
+            sb.append("<option value=\"").append(values[i]).append("\"").append(sel).append(">")
+                    .append(labels[i]).append("</option>");
+        }
+        return sb.toString();
+    }
+
+    private static String timerWheel(String unit, int count, boolean padded) {
+        StringBuilder items = new StringBuilder();
+        for (int i = 0; i < count; i++) {
+            items.append("<div class=\"timer-wheel-item\">")
+                    .append(padded ? String.format("%02d", i) : String.valueOf(i))
+                    .append("</div>");
+        }
+        return """
+                <div class="timer-wheel" data-timer-wheel="%s">
+                    <div class="timer-wheel-spacer"></div>
+                    %s
+                    <div class="timer-wheel-spacer"></div>
+                </div>
+                """.formatted(unit, items);
     }
 
     /* ======================================================================
@@ -693,10 +759,12 @@ public class HomeController {
             Map.entry("home", "<path d=\"M4 11.5 12 4l8 7.5\"/><path d=\"M6 10.5V20h5v-6h2v6h5v-9.5\"/>"),
             Map.entry("weather", "<circle cx=\"12\" cy=\"9\" r=\"3.4\"/><path d=\"M12 2.8v1.8M12 13.6v1.8M5.5 9h1.8M16.7 9h1.8M7.4 4.4l1.3 1.3M15.6 4.4l-1.3 1.3M7.4 13.6l1.3-1.3M15.6 13.6l-1.3-1.3\"/><path d=\"M6.5 21a3.6 3.6 0 0 1 .4-7.2 4.6 4.6 0 0 1 8.7 1.4A3.1 3.1 0 0 1 15.2 21Z\"/>"),
             Map.entry("lights", "<path d=\"M9 18h6M10 21h4\"/><path d=\"M12 3a6 6 0 0 0-3.2 11.1c.6.5 1 1.2 1 2h4.4c0-.8.4-1.5 1-2A6 6 0 0 0 12 3Z\"/>"),
-            Map.entry("climate", "<rect x=\"10\" y=\"3\" width=\"4\" height=\"11\" rx=\"2\"/><circle cx=\"12\" cy=\"17\" r=\"3.4\"/>"),
             Map.entry("security", "<path d=\"M12 3l7 3v5c0 5-3.4 7.8-7 9-3.6-1.2-7-4-7-9V6l7-3Z\"/><path d=\"M9 12l2 2 4-4.5\"/>"),
             Map.entry("media", "<circle cx=\"12\" cy=\"12\" r=\"8.5\"/><path d=\"M10 8.3v7.4l6-3.7Z\"/>"),
             Map.entry("calendar", "<rect x=\"4\" y=\"5\" width=\"16\" height=\"15\" rx=\"2\"/><path d=\"M4 9.5h16M8 3v4M16 3v4\"/>"),
+            Map.entry("kitchen", "<path d=\"M7.5 10.5a4 4 0 1 1 3-6.6 4 4 0 0 1 3 0 4 4 0 1 1 3 6.6\"/><path d=\"M7 10.5h10V17H7Z\"/><path d=\"M7 17h10v3H7Z\"/>"),
+            Map.entry("timer", "<circle cx=\"12\" cy=\"13\" r=\"8\"/><path d=\"M12 9v4l3 2\"/><path d=\"M9 2h6M12 2v3\"/>"),
+            Map.entry("warn", "<path d=\"M12 3 22 20H2Z\"/><path d=\"M12 9v5M12 17v.01\"/>"),
             Map.entry("theme", "<path d=\"M12 3a9 9 0 1 0 0 18c1.1 0 1.9-.9 1.9-1.9 0-.5-.2-.9-.5-1.2-.3-.3-.4-.7-.4-1.1 0-.9.7-1.5 1.6-1.5H16a4 4 0 0 0 4-4c0-4.6-3.9-8.3-8-8.3Z\"/><circle cx=\"7.6\" cy=\"10.6\" r=\"1\"/><circle cx=\"10.4\" cy=\"7.4\" r=\"1\"/><circle cx=\"15\" cy=\"8\" r=\"1\"/><circle cx=\"16.4\" cy=\"12.2\" r=\"1\"/>"),
             Map.entry("logout", "<path d=\"M9 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h3\"/><path d=\"M14 8l4 4-4 4M18 12H9\"/>"),
             Map.entry("fan", "<path d=\"M10.827 16.379a6.082 6.082 0 0 1-8.618-7.002l5.412 1.45a6.082 6.082 0 0 1 7.002-8.618l-1.45 5.412a6.082 6.082 0 0 1 8.618 7.002l-5.412-1.45a6.082 6.082 0 0 1-7.002 8.618l1.45-5.412Z\"/><circle cx=\"12\" cy=\"12\" r=\"0.8\"/>"),
@@ -704,24 +772,16 @@ public class HomeController {
             Map.entry("unlock", "<rect x=\"6\" y=\"11\" width=\"12\" height=\"9\" rx=\"2\"/><path d=\"M9 11V8a3 3 0 0 1 5.7-1.4\"/>"),
             Map.entry("camera", "<rect x=\"3\" y=\"7\" width=\"13\" height=\"10\" rx=\"2\"/><path d=\"M16 10.2 21 8v8l-5-2.2Z\"/><circle cx=\"9\" cy=\"12\" r=\"2.3\"/>"),
             Map.entry("garage", "<rect x=\"4\" y=\"6\" width=\"16\" height=\"13\" rx=\"1.5\"/><path d=\"M4 10.2h16M4 14.4h16\"/>"),
-            Map.entry("flame", "<path d=\"M12 3c1 3-3 4.3-3 8.3a3 3 0 1 0 6 0c0-1-1-1.6-1-3 1 1.2 2 3.1 2 5.1a4 4 0 1 1-8 0C8 9 11 7 12 3Z\"/>"),
-            Map.entry("snow", "<path d=\"M12 3v18M6 6l12 12M18 6 6 18M3 12h18\"/>"),
-            Map.entry("auto", "<path d=\"M4.5 12a7.5 7.5 0 0 1 13-5M19.5 12a7.5 7.5 0 0 1-13 5\"/><path d=\"M17 4v3.5h-3.5M7 20v-3.5h3.5\"/>"),
-            Map.entry("power", "<path d=\"M12 3v8\"/><path d=\"M6.3 6.3a8 8 0 1 0 11.4 0\"/>"),
             Map.entry("play", "<path d=\"M9 6.5v11l9-5.5Z\"/>"),
             Map.entry("pause", "<rect x=\"7.5\" y=\"6\" width=\"3.2\" height=\"12\" rx=\"1\"/><rect x=\"13.3\" y=\"6\" width=\"3.2\" height=\"12\" rx=\"1\"/>"),
             Map.entry("prev", "<path d=\"M15.5 6 7 12l8.5 6Z\"/><rect x=\"5\" y=\"6\" width=\"2\" height=\"12\" rx=\"0.6\"/>"),
             Map.entry("next", "<path d=\"M8.5 6 17 12l-8.5 6Z\"/><rect x=\"17\" y=\"6\" width=\"2\" height=\"12\" rx=\"0.6\"/>"),
             Map.entry("volume", "<path d=\"M4 9.5v5h3.4l4.6 3.8V5.7L7.4 9.5Z\"/><path d=\"M16.5 9.2a4 4 0 0 1 0 5.6\"/>"),
             Map.entry("chevron", "<path d=\"M6 15l6-6 6 6\"/>"),
-            Map.entry("menu", "<path d=\"M5 7h14M5 12h14M5 17h14\"/>"),
             Map.entry("waves", "<path d=\"M2 15c1.6-1.8 3.4-1.8 5 0s3.4 1.8 5 0 3.4-1.8 5 0 3.4 1.8 5 0\"/><path d=\"M2 19c1.6-1.8 3.4-1.8 5 0s3.4 1.8 5 0 3.4-1.8 5 0 3.4 1.8 5 0\"/>"),
             Map.entry("check", "<path d=\"M5 12.5l4.5 4.5L19 7\"/>"),
             Map.entry("close", "<path d=\"M6 6l12 12M18 6 6 18\"/>"),
-            Map.entry("plus", "<path d=\"M12 5v14M5 12h14\"/>"),
-            Map.entry("minus", "<path d=\"M5 12h14\"/>"),
             Map.entry("music", "<path d=\"M9 18V5.2L20 3v12.8\"/><circle cx=\"6.5\" cy=\"18\" r=\"2.5\"/><circle cx=\"17.5\" cy=\"15.8\" r=\"2.5\"/>"),
-            Map.entry("tv", "<rect x=\"3\" y=\"5\" width=\"18\" height=\"12\" rx=\"2\"/><path d=\"M9 21h6\"/>"),
             Map.entry("coffee", "<path d=\"M4 9h13v4a5 5 0 0 1-5 5H9a5 5 0 0 1-5-5Z\"/><path d=\"M17 10h1.5a2 2 0 0 1 0 4H17\"/><path d=\"M7 4c0 1-1 1-1 2M11 4c0 1-1 1-1 2\"/>"),
             Map.entry("movie", "<rect x=\"3\" y=\"6\" width=\"18\" height=\"13\" rx=\"2\"/><path d=\"M3 10h18M7 6 5 10M13 6l-2 4M19 6l-2 4\"/>"),
             Map.entry("umbrella", "<path d=\"M12 3a9 9 0 0 1 9 9H3a9 9 0 0 1 9-9Z\"/><path d=\"M12 12v7a2 2 0 0 1-3.5 1.3M12 3v-1\"/>"),

@@ -22,6 +22,9 @@
     }
 
     let lastHourly = [];
+    let lastDaily = [];
+    let cameraViewerId = null;
+    let cameraViewerTimer = null;
 
     function showPage(name) {
         const pageName = pages.some((page) => page.dataset.page === name) ? name : "home";
@@ -37,6 +40,11 @@
         }
         if (pageName === "home" || pageName === "weather") {
             renderChart(lastHourly);
+        }
+        if (pageName === "security") {
+            refreshCameraSnapshots();
+        } else {
+            closeCameraViewer();
         }
         if (location.hash.slice(1) !== pageName) {
             history.replaceState(null, "", "#" + pageName);
@@ -58,14 +66,78 @@
     /* ---- Rain radar (Leaflet + LibreWXR radar/nowcast) ---- */
     const RADAR_LAT = 40.12623;
     const RADAR_LON = -74.0493;
+    const RADAR_REFRESH_MS = 5 * 60 * 1000;
+    const RADAR_FRAME_MS = 400;
+    const RADAR_FADE_MS = 180;
+    const RADAR_ICON_SVG_OPEN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">';
+    const RADAR_PLAY_ICON = `${RADAR_ICON_SVG_OPEN}<path d="M9 6.5v11l9-5.5Z"/></svg>`;
+    const RADAR_PAUSE_ICON = `${RADAR_ICON_SVG_OPEN}<rect x="7.5" y="6" width="3.2" height="12" rx="1"/><rect x="13.3" y="6" width="3.2" height="12" rx="1"/></svg>`;
+    let radarAutoPlayPending = true;
     let radarMap = null;
-    let radarLayer = null;
     let radarHost = "https://api.librewxr.net";
     let radarFrames = [];
     let radarPastCount = 0;
     let radarFrameIndex = 0;
     let radarPlaying = false;
     let radarTimer = null;
+    // Tile layers are cached per frame path (not removed/re-added) so switching
+    // frames is an instant opacity swap instead of a network-bound flash, and
+    // replaying already-seen frames doesn't refetch tiles.
+    const radarLayerCache = new Map();
+
+    function radarLayerFor(frame) {
+        let layer = radarLayerCache.get(frame.path);
+        if (!layer) {
+            layer = L.tileLayer(`${radarHost}${frame.path}/256/{z}/{x}/{y}/6/1_1.png`, { opacity: 0 });
+            layer.addTo(radarMap);
+            radarLayerCache.set(frame.path, layer);
+        }
+        return layer;
+    }
+
+    function pruneRadarLayerCache() {
+        const validPaths = new Set(radarFrames.map((f) => f.path));
+        radarLayerCache.forEach((layer, path) => {
+            if (!validPaths.has(path)) {
+                radarMap.removeLayer(layer);
+                radarLayerCache.delete(path);
+            }
+        });
+    }
+
+    function preloadRadarFrames() {
+        radarFrames.forEach((frame) => radarLayerFor(frame));
+    }
+
+    // Tweens the slider's numeric value over a few animation frames instead of
+    // snapping it straight to the target, so it glides in step with the tile crossfade.
+    let radarSliderAnim = null;
+    function animateSliderTo(slider, target, duration) {
+        if (!slider) {
+            return;
+        }
+        const start = parseFloat(slider.value);
+        if (radarSliderAnim) {
+            cancelAnimationFrame(radarSliderAnim);
+            radarSliderAnim = null;
+        }
+        if (!isFinite(start) || start === target) {
+            slider.value = String(target);
+            return;
+        }
+        const startTime = performance.now();
+        const step = (now) => {
+            const t = Math.min(1, (now - startTime) / duration);
+            slider.value = String(start + (target - start) * t);
+            if (t < 1) {
+                radarSliderAnim = requestAnimationFrame(step);
+            } else {
+                slider.value = String(target);
+                radarSliderAnim = null;
+            }
+        };
+        radarSliderAnim = requestAnimationFrame(step);
+    }
 
     function initRadar() {
         const container = document.querySelector("[data-radar-map]");
@@ -94,10 +166,20 @@
         if (slider) {
             slider.addEventListener("input", () => {
                 stopRadarPlayback();
-                showRadarFrame(parseInt(slider.value, 10));
+                showRadarFrame(Math.round(parseFloat(slider.value)));
             });
         }
 
+        loadRadarFrames();
+        // The backend's own cache rolls over every 5 min; without this the frame
+        // list (and its tile paths) goes stale on a kiosk tab that's never reloaded.
+        setInterval(loadRadarFrames, RADAR_REFRESH_MS);
+    }
+
+    function loadRadarFrames() {
+        if (!radarMap) {
+            return;
+        }
         fetch("/api/radar/frames")
             .then((res) => res.json())
             .then((data) => {
@@ -106,43 +188,54 @@
                 const nowcast = (data.radar && data.radar.nowcast) || [];
                 radarFrames = [...past, ...nowcast];
                 radarPastCount = past.length;
+                pruneRadarLayerCache();
                 if (radarFrames.length === 0) {
                     setAll("[data-radar-time]", (el) => { el.textContent = "Radar unavailable"; });
                     return;
                 }
+                const slider = document.querySelector("[data-radar-slider]");
                 if (slider) {
                     slider.max = String(radarFrames.length - 1);
                 }
                 showRadarFrame(radarPastCount > 0 ? radarPastCount - 1 : radarFrames.length - 1);
                 setTimeout(() => radarMap.invalidateSize(), 50);
+                preloadRadarFrames();
+                if (radarAutoPlayPending) {
+                    radarAutoPlayPending = false;
+                    toggleRadarPlay();
+                }
             })
             .catch(() => {
                 setAll("[data-radar-time]", (el) => { el.textContent = "Radar unavailable"; });
             });
     }
 
-    function showRadarFrame(index) {
+    function showRadarFrame(index, syncSlider) {
         if (!radarMap || !radarFrames[index]) {
             return;
         }
+        const previousFrame = radarFrames[radarFrameIndex];
         radarFrameIndex = index;
-        if (radarLayer) {
-            radarMap.removeLayer(radarLayer);
-        }
         const frame = radarFrames[index];
-        radarLayer = L.tileLayer(`${radarHost}${frame.path}/256/{z}/{x}/{y}/6/1_1.png`, {
-            opacity: 0.65,
-        }).addTo(radarMap);
 
-        const slider = document.querySelector("[data-radar-slider]");
-        if (slider) {
-            slider.value = String(index);
+        radarLayerFor(frame).setOpacity(0.65);
+        if (previousFrame && previousFrame.path !== frame.path) {
+            const prevLayer = radarLayerCache.get(previousFrame.path);
+            if (prevLayer) {
+                prevLayer.setOpacity(0);
+            }
         }
 
-        const isForecast = index >= radarPastCount;
+        if (syncSlider !== false) {
+            const slider = document.querySelector("[data-radar-slider]");
+            if (slider) {
+                slider.value = String(index);
+            }
+        }
+
         const label = new Date(frame.time * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
         setAll("[data-radar-time]", (el) => {
-            el.textContent = `${isForecast ? "Forecast" : "Observed"} · ${label}`;
+            el.textContent = label;
         });
     }
 
@@ -152,6 +245,7 @@
         const btn = document.querySelector("[data-radar-play]");
         if (btn) {
             btn.classList.remove("is-playing");
+            btn.innerHTML = RADAR_PLAY_ICON;
         }
     }
 
@@ -160,11 +254,14 @@
         const btn = document.querySelector("[data-radar-play]");
         if (btn) {
             btn.classList.toggle("is-playing", radarPlaying);
+            btn.innerHTML = radarPlaying ? RADAR_PAUSE_ICON : RADAR_PLAY_ICON;
         }
         if (radarPlaying) {
             radarTimer = setInterval(() => {
-                showRadarFrame((radarFrameIndex + 1) % radarFrames.length);
-            }, 600);
+                const nextIndex = (radarFrameIndex + 1) % radarFrames.length;
+                showRadarFrame(nextIndex, false);
+                animateSliderTo(document.querySelector("[data-radar-slider]"), nextIndex, RADAR_FADE_MS);
+            }, RADAR_FRAME_MS);
         } else {
             clearInterval(radarTimer);
         }
@@ -592,6 +689,17 @@
         return { label: "Low", cls: "pill-good", tip: "No sunblock needed" };
     }
 
+    const AQI_ALERT_THRESHOLD = 100;
+
+    function aqiBucket(aqi) {
+        if (aqi >= 301) return { label: "Hazardous", cls: "pill-bad" };
+        if (aqi >= 201) return { label: "Very Unhealthy", cls: "pill-bad" };
+        if (aqi >= 151) return { label: "Unhealthy", cls: "pill-bad" };
+        if (aqi >= 101) return { label: "Unhealthy for Sensitive Groups", cls: "pill-warn" };
+        if (aqi >= 51) return { label: "Moderate", cls: "pill-warn" };
+        return { label: "Good", cls: "pill-good" };
+    }
+
     function fmtTime(iso) {
         const d = new Date(iso.includes("T") ? iso : iso.replace(" ", "T"));
         return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
@@ -632,6 +740,80 @@
         return d;
     }
 
+    // Shared by the home/weather rolling chart and the per-day detail modal chart.
+    // `firstIsNow` labels point 0 as "Now" (rolling chart); otherwise all points get clock-time labels.
+    // Labels thin out to every 3rd point once there are more than 12 (a full day's 24 hours would collide otherwise).
+    function buildHourlyChartSvg(hourly, width, height, opts) {
+        opts = opts || {};
+        const gradientId = opts.gradientId || "chartGradient";
+        if (!hourly || hourly.length === 0) {
+            return { viewBox: `0 0 ${width} ${height}`, markup: "" };
+        }
+
+        const top = 24;
+        const bottom = height - 34;
+        const temps = hourly.map((h) => h.tempF);
+        const tempMin = Math.min(...temps) - 3;
+        const tempMax = Math.max(...temps) + 3;
+        const span = Math.max(1, tempMax - tempMin);
+        const stepX = hourly.length > 1 ? width / (hourly.length - 1) : 0;
+
+        const points = hourly.map((h, i) => ({
+            x: Math.round(i * stepX),
+            y: Math.round(top + ((tempMax - h.tempF) / span) * (bottom - top)),
+        }));
+
+        const linePath = buildSmoothPath(points);
+        const last = points[points.length - 1];
+        const areaPath = `${linePath} L${last.x},${bottom} L${points[0].x},${bottom} Z`;
+        const labelStep = hourly.length > 12 ? 3 : 1;
+
+        // The first/last points sit exactly on the chart edge; centering text on them would
+        // clip half the label outside the viewBox, so anchor those two inward instead.
+        function edgeAnchor(i) {
+            if (i === 0) return "start";
+            if (i === points.length - 1) return "end";
+            return "middle";
+        }
+
+        const dots = points.map((p) => `<circle class="chart-dot" cx="${p.x}" cy="${p.y}" r="3.5"/>`).join("");
+        const tempLabels = points.map((p, i) => {
+            if (i % labelStep !== 0) {
+                return "";
+            }
+            return `<text class="chart-temp-label" x="${p.x}" y="${p.y - 12}" text-anchor="${edgeAnchor(i)}">${hourly[i].tempF}&deg;</text>`;
+        }).join("");
+        const rainLabels = points.map((p, i) => {
+            if (i % labelStep !== 0 || hourly[i].precipChance < 20) {
+                return "";
+            }
+            return `<text class="chart-rain-label" x="${p.x}" y="${p.y - 26}" text-anchor="${edgeAnchor(i)}">${hourly[i].precipChance}%</text>`;
+        }).join("");
+        const hourLabels = points.map((p, i) => {
+            if (i % labelStep !== 0) {
+                return "";
+            }
+            const label = opts.firstIsNow && i === 0 ? "Now" : new Date(hourly[i].time).toLocaleTimeString([], { hour: "numeric" });
+            return `<text x="${p.x}" y="${height - 14}" text-anchor="${edgeAnchor(i)}">${label}</text>`;
+        }).join("");
+
+        const markup = `
+            <defs>
+                <linearGradient id="${gradientId}" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0" style="stop-color:var(--accent);stop-opacity:0.35"/>
+                    <stop offset="1" style="stop-color:var(--accent);stop-opacity:0"/>
+                </linearGradient>
+            </defs>
+            <path class="chart-fill" d="${areaPath}" fill="url(#${gradientId})"/>
+            <path class="chart-line" d="${linePath}"/>
+            ${dots}
+            ${tempLabels}
+            ${rainLabels}
+            ${hourLabels}`;
+
+        return { viewBox: `0 0 ${width} ${height}`, markup };
+    }
+
     function renderChart(hourly) {
         setAll("[data-wx-chart]", (el) => {
             if (!hourly || hourly.length === 0) {
@@ -641,51 +823,9 @@
             const rect = el.getBoundingClientRect();
             const width = Math.max(200, Math.round(rect.width));
             const height = Math.max(90, Math.round(rect.height));
-            el.setAttribute("viewBox", `0 0 ${width} ${height}`);
-
-            const top = 24;
-            const bottom = height - 34;
-            const temps = hourly.map((h) => h.tempF);
-            const tempMin = Math.min(...temps) - 3;
-            const tempMax = Math.max(...temps) + 3;
-            const span = Math.max(1, tempMax - tempMin);
-            const stepX = hourly.length > 1 ? width / (hourly.length - 1) : 0;
-
-            const points = hourly.map((h, i) => ({
-                x: Math.round(i * stepX),
-                y: Math.round(top + ((tempMax - h.tempF) / span) * (bottom - top)),
-            }));
-
-            const linePath = buildSmoothPath(points);
-            const last = points[points.length - 1];
-            const areaPath = `${linePath} L${last.x},${bottom} L${points[0].x},${bottom} Z`;
-
-            const dots = points.map((p) => `<circle class="chart-dot" cx="${p.x}" cy="${p.y}" r="3.5"/>`).join("");
-            const tempLabels = points.map((p, i) => `<text class="chart-temp-label" x="${p.x}" y="${p.y - 12}" text-anchor="middle">${hourly[i].tempF}&deg;</text>`).join("");
-            const rainLabels = points.map((p, i) => {
-                if (hourly[i].precipChance < 20) {
-                    return "";
-                }
-                return `<text class="chart-rain-label" x="${p.x}" y="${p.y - 26}" text-anchor="middle">${hourly[i].precipChance}%</text>`;
-            }).join("");
-            const hourLabels = points.map((p, i) => {
-                const label = i === 0 ? "Now" : new Date(hourly[i].time).toLocaleTimeString([], { hour: "numeric" });
-                return `<text x="${p.x}" y="${height - 14}" text-anchor="middle">${label}</text>`;
-            }).join("");
-
-            el.innerHTML = `
-                <defs>
-                    <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0" style="stop-color:var(--accent);stop-opacity:0.35"/>
-                        <stop offset="1" style="stop-color:var(--accent);stop-opacity:0"/>
-                    </linearGradient>
-                </defs>
-                <path class="chart-fill" d="${areaPath}" fill="url(#chartGradient)"/>
-                <path class="chart-line" d="${linePath}"/>
-                ${dots}
-                ${tempLabels}
-                ${rainLabels}
-                ${hourLabels}`;
+            const chart = buildHourlyChartSvg(hourly, width, height, { firstIsNow: true, gradientId: "chartGradient" });
+            el.setAttribute("viewBox", chart.viewBox);
+            el.innerHTML = chart.markup;
         });
     }
 
@@ -739,6 +879,8 @@
         lastHourly = data.hourly || [];
         renderChart(lastHourly);
 
+        lastDaily = data.daily || [];
+
         setAll("[data-wx-daily]", (el) => {
             if (data.daily.length === 0) {
                 return;
@@ -746,11 +888,11 @@
             const scaleMin = Math.min(...data.daily.map((d) => d.loF)) - 2;
             const scaleMax = Math.max(...data.daily.map((d) => d.hiF)) + 2;
             const span = Math.max(1, scaleMax - scaleMin);
-            el.innerHTML = data.daily.map((d) => {
+            el.innerHTML = data.daily.map((d, i) => {
                 const left = ((d.loF - scaleMin) / span) * 100;
                 const width = ((d.hiF - d.loF) / span) * 100;
                 return `
-                    <div class="day-row">
+                    <div class="day-row" data-day-index="${i}">
                         <span>${fmtDay(d.date)}</span>
                         <span class="day-precip">${d.precipChance >= 20 ? d.precipChance + "%" : ""}</span>
                         ${wxIcon(d.icon, "day-icon")}
@@ -758,6 +900,9 @@
                         <div class="day-range"><span class="lo">${d.loF}&deg;</span><strong>${d.hiF}&deg;</strong></div>
                     </div>`;
             }).join("");
+            el.querySelectorAll("[data-day-index]").forEach((row) => {
+                row.addEventListener("click", () => openDayDetail(Number(row.dataset.dayIndex)));
+            });
         });
 
         if (data.daily.length > 0) {
@@ -788,6 +933,55 @@
                     : "";
             }
         });
+
+        setAll("[data-wx-aqi]", (el) => { el.textContent = data.aqi != null ? data.aqi : "—"; });
+        renderAirAlert(data.aqi);
+    }
+
+    function openDayDetail(index) {
+        const d = lastDaily[index];
+        if (!d) {
+            return;
+        }
+        const uv = uvBucket(d.uvMax);
+        const title = new Date(d.date + "T00:00").toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" });
+        const hourly = d.hourly || [];
+        const chart = buildHourlyChartSvg(hourly, 360, 130, { gradientId: "dayChartGradient" });
+        const chartHtml = hourly.length > 0
+            ? `<svg class="wx-chart day-detail-chart" viewBox="${chart.viewBox}" preserveAspectRatio="none">${chart.markup}</svg>`
+            : "";
+        const body = `
+            ${chartHtml}
+            <div class="info-rows">
+                <div class="info-row"><span>Condition</span><span>${d.label}</span></div>
+                <div class="info-row"><span>High / Low</span><span>${d.hiF}&deg; / ${d.loF}&deg;</span></div>
+                <div class="info-row"><span>Precip Chance</span><span>${d.precipChance}%</span></div>
+                <div class="info-row"><span>UV Index</span><span>${d.uvMax} &middot; ${uv.label}</span></div>
+                <div class="info-row"><span>Sunrise</span><span>${d.sunrise ? fmtTime(d.sunrise) : "—"}</span></div>
+                <div class="info-row"><span>Sunset</span><span>${d.sunset ? fmtTime(d.sunset) : "—"}</span></div>
+            </div>`;
+        openModal(title, body);
+    }
+
+    function renderAirAlert(aqi) {
+        const widget = document.querySelector("[data-home-air-alert]");
+        if (!widget) {
+            return;
+        }
+        if (aqi == null || aqi <= AQI_ALERT_THRESHOLD) {
+            widget.hidden = true;
+            return;
+        }
+        const bucket = aqiBucket(aqi);
+        widget.hidden = false;
+        const titleEl = document.querySelector("[data-home-air-title]");
+        const noteEl = document.querySelector("[data-home-air-note]");
+        if (titleEl) {
+            titleEl.textContent = `Air Quality: ${bucket.label}`;
+        }
+        if (noteEl) {
+            noteEl.textContent = `AQI ${aqi} · consider limiting time outdoors`;
+        }
     }
 
     function loadWeather() {
@@ -1103,4 +1297,452 @@
     setInterval(calRender, 5 * 60 * 1000);
     loadCalendarEvents();
     setInterval(loadCalendarEvents, 15 * 60 * 1000);
+
+    /* ---- Kitchen: timers (Apple Timer-style wheel picker + ring countdowns) ---- */
+    const TIMER_ROW_HEIGHT = 32;
+    const timersList = document.querySelector("[data-timers-list]");
+    const TIMERS = [];
+    let timerSeq = 0;
+
+    function initTimerWheel(el, defaultValue) {
+        const items = [...el.querySelectorAll(".timer-wheel-item")];
+        let settleTimer = null;
+        let synced = false;
+
+        function highlightNearest() {
+            const idx = Math.max(0, Math.min(items.length - 1, Math.round(el.scrollTop / TIMER_ROW_HEIGHT)));
+            items.forEach((item, i) => item.classList.toggle("is-selected", i === idx));
+            return idx;
+        }
+
+        el.addEventListener("scroll", () => {
+            highlightNearest();
+            clearTimeout(settleTimer);
+            settleTimer = setTimeout(highlightNearest, 100);
+        });
+
+        // The wheel starts inside a hidden (display:none) page, so it has no
+        // scrollable height yet. Wait until it's actually laid out before
+        // scrolling it to its default value.
+        if (typeof ResizeObserver !== "undefined") {
+            const ro = new ResizeObserver((entries) => {
+                if (!synced && entries[0].contentRect.height > 0) {
+                    synced = true;
+                    el.scrollTop = defaultValue * TIMER_ROW_HEIGHT;
+                    highlightNearest();
+                    ro.disconnect();
+                }
+            });
+            ro.observe(el);
+        }
+
+        el.getValue = highlightNearest;
+    }
+
+    const timerHourWheel = document.querySelector('[data-timer-wheel="hours"]');
+    const timerMinuteWheel = document.querySelector('[data-timer-wheel="minutes"]');
+    const timerSecondWheel = document.querySelector('[data-timer-wheel="seconds"]');
+    if (timerHourWheel) {
+        initTimerWheel(timerHourWheel, 0);
+    }
+    if (timerMinuteWheel) {
+        initTimerWheel(timerMinuteWheel, 5);
+    }
+    if (timerSecondWheel) {
+        initTimerWheel(timerSecondWheel, 0);
+    }
+
+    const TIMER_COLORS = ["#75d4f2", "#f2a65a", "#9be29b", "#f28fa5", "#b79df2"];
+
+    function formatClock(totalSeconds) {
+        const s = Math.max(0, Math.round(totalSeconds));
+        const h = Math.floor(s / 3600);
+        const m = Math.floor((s % 3600) / 60);
+        const sec = s % 60;
+        return h > 0
+            ? `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`
+            : `${m}:${String(sec).padStart(2, "0")}`;
+    }
+
+    function renderHomeTimers() {
+        const widget = document.querySelector("[data-home-timers]");
+        if (!widget) {
+            return;
+        }
+        if (TIMERS.length === 0) {
+            widget.hidden = true;
+            return;
+        }
+        widget.hidden = false;
+        const list = widget.querySelector(".home-timers-list");
+        list.innerHTML = TIMERS.map((t) => {
+            const done = t.remaining <= 0;
+            return `
+                <div class="home-timer-row">
+                    <span class="home-timer-dot" style="background:${t.color || "var(--accent)"}"></span>
+                    <span class="home-timer-label">${t.label}</span>
+                    <span class="home-timer-clock">${done ? "Done" : formatClock(t.remaining)}</span>
+                </div>`;
+        }).join("");
+    }
+
+    function beep() {
+        try {
+            const ctx = new (window.AudioContext || window.webkitAudioContext)();
+            [0, 260, 520].forEach((delayMs) => {
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.type = "sine";
+                osc.frequency.value = 880;
+                const startAt = ctx.currentTime + delayMs / 1000;
+                gain.gain.setValueAtTime(0.0001, startAt);
+                gain.gain.exponentialRampToValueAtTime(0.3, startAt + 0.02);
+                gain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.2);
+                osc.connect(gain).connect(ctx.destination);
+                osc.start(startAt);
+                osc.stop(startAt + 0.22);
+            });
+        } catch (err) {
+            // audio unavailable; the timer ring still shows visually
+        }
+    }
+
+    function renderTimers() {
+        renderHomeTimers();
+        if (!timersList) {
+            return;
+        }
+        if (TIMERS.length === 0) {
+            timersList.innerHTML = `<p class="modal-empty">No timers running. Set one above.</p>`;
+            timersList.classList.remove("is-scrollable");
+            return;
+        }
+        timersList.innerHTML = TIMERS.map((t) => {
+            const done = t.remaining <= 0;
+            const pct = done ? 0 : Math.max(0, Math.min(100, Math.round((t.remaining / t.duration) * 100)));
+            const stateClass = done ? " is-done" : (t.running ? "" : " is-paused");
+            const ringStyle = `--pct:${pct}${t.color ? `;--ring-color:${t.color}` : ""}`;
+            const colorBtn = done ? "" : `<button type="button" class="timer-color-btn" style="background:${t.color || "var(--accent)"}" data-timer-color-open="${t.id}" aria-label="Choose timer color"></button>`;
+            return `
+                <div class="timer-card${stateClass}">${colorBtn}
+                    <span class="timer-card-label">${t.label}</span>
+                    <div class="timer-ring" style="${ringStyle}">
+                        <div class="timer-ring-readout">${done ? "Done" : formatClock(t.remaining)}</div>
+                    </div>
+                    <div class="timer-card-actions">
+                        <button type="button" class="timer-action-btn timer-cancel" data-timer-cancel="${t.id}">${done ? "Dismiss" : "Cancel"}</button>
+                        ${done ? "" : `<button type="button" class="timer-action-btn timer-pause" data-timer-pause="${t.id}">${t.running ? "Pause" : "Resume"}</button>`}
+                    </div>
+                </div>`;
+        }).join("");
+        timersList.classList.toggle("is-scrollable", timersList.scrollHeight > timersList.clientHeight + 1);
+        timersList.querySelectorAll("[data-timer-cancel]").forEach((btn) => {
+            btn.addEventListener("click", () => {
+                const id = Number(btn.dataset.timerCancel);
+                const idx = TIMERS.findIndex((t) => t.id === id);
+                if (idx !== -1) {
+                    TIMERS.splice(idx, 1);
+                }
+                renderTimers();
+            });
+        });
+        timersList.querySelectorAll("[data-timer-pause]").forEach((btn) => {
+            btn.addEventListener("click", () => {
+                const id = Number(btn.dataset.timerPause);
+                const timer = TIMERS.find((t) => t.id === id);
+                if (timer) {
+                    timer.running = !timer.running;
+                }
+                renderTimers();
+            });
+        });
+        timersList.querySelectorAll("[data-timer-color-open]").forEach((btn) => {
+            btn.addEventListener("click", () => {
+                const id = Number(btn.dataset.timerColorOpen);
+                const timer = TIMERS.find((t) => t.id === id);
+                const body = TIMER_COLORS.map((c) =>
+                    `<button type="button" class="timer-color-swatch-lg${timer && timer.color === c ? " is-selected" : ""}" style="background:${c}" data-timer-color-pick="${id}" data-color="${c}" aria-label="Set timer color"></button>`
+                ).join("");
+                openModal("Timer Color", `<div class="timer-color-modal">${body}</div>`);
+                document.querySelectorAll("[data-timer-color-pick]").forEach((swatch) => {
+                    swatch.addEventListener("click", () => {
+                        const t2 = TIMERS.find((t) => t.id === Number(swatch.dataset.timerColorPick));
+                        if (t2) {
+                            t2.color = swatch.dataset.color;
+                        }
+                        closeModal();
+                        renderTimers();
+                    });
+                });
+            });
+        });
+    }
+
+    function startTimer(totalSeconds) {
+        if (!totalSeconds || totalSeconds <= 0) {
+            return;
+        }
+        timerSeq += 1;
+        TIMERS.push({
+            id: timerSeq,
+            label: `${formatClock(totalSeconds)} timer`,
+            duration: totalSeconds,
+            remaining: totalSeconds,
+            running: true,
+            alerted: false,
+            color: null,
+        });
+        renderTimers();
+    }
+
+    const timerCustomStart = document.querySelector("[data-timer-custom-start]");
+    if (timerCustomStart) {
+        timerCustomStart.addEventListener("click", () => {
+            const h = timerHourWheel ? timerHourWheel.getValue() : 0;
+            const m = timerMinuteWheel ? timerMinuteWheel.getValue() : 0;
+            const s = timerSecondWheel ? timerSecondWheel.getValue() : 0;
+            startTimer(h * 3600 + m * 60 + s);
+        });
+    }
+
+    renderTimers();
+    setInterval(() => {
+        TIMERS.forEach((t) => {
+            if (t.running && t.remaining > 0) {
+                t.remaining -= 1;
+                if (t.remaining <= 0) {
+                    t.remaining = 0;
+                    t.running = false;
+                    if (!t.alerted) {
+                        t.alerted = true;
+                        beep();
+                    }
+                }
+            }
+        });
+        renderTimers();
+    }, 1000);
+
+    /* ---- Kitchen: food info tiles (grid <-> detail with back button) ---- */
+    const infoGrid = document.querySelector("[data-info-grid]");
+    const infoDetail = document.querySelector("[data-info-detail]");
+    const infoDetailTitle = document.querySelector("[data-info-detail-title]");
+    const infoDetailBody = document.querySelector("[data-info-detail-body]");
+    const infoBackBtn = document.querySelector("[data-info-back]");
+
+    if (infoGrid && infoDetail && infoDetailTitle && infoDetailBody) {
+        infoGrid.querySelectorAll("[data-info-open]").forEach((tile) => {
+            tile.addEventListener("click", () => {
+                const template = document.querySelector(`[data-info-template="${tile.dataset.infoOpen}"]`);
+                infoDetailTitle.textContent = tile.dataset.infoLabel || "";
+                infoDetailBody.innerHTML = template ? template.innerHTML : "Info coming soon.";
+                infoGrid.hidden = true;
+                infoDetail.hidden = false;
+                infoDetailBody.classList.toggle("is-scrollable", infoDetailBody.scrollHeight > infoDetailBody.clientHeight + 1);
+            });
+        });
+    }
+
+    if (infoBackBtn) {
+        infoBackBtn.addEventListener("click", () => {
+            infoDetail.hidden = true;
+            infoGrid.hidden = false;
+        });
+    }
+
+    /* ---- Kitchen: unit converter ---- */
+    function factorConvert(factors) {
+        return (value, from, to) => (value * factors[from]) / factors[to];
+    }
+
+    function tempConvert(value, from, to) {
+        if (from === to) {
+            return value;
+        }
+        const celsius = from === "f" ? ((value - 32) * 5) / 9 : value;
+        return to === "f" ? (celsius * 9) / 5 + 32 : celsius;
+    }
+
+    const CONVERT_FNS = {
+        volume: factorConvert({ tsp: 4.92892, tbsp: 14.7868, cup: 236.588, flOz: 29.5735, pint: 473.176, quart: 946.353, gallon: 3785.41, ml: 1, l: 1000 }),
+        weight: factorConvert({ oz: 28.3495, lb: 453.592, g: 1, kg: 1000 }),
+        temp: tempConvert,
+    };
+
+    function formatConvertResult(n) {
+        if (!isFinite(n)) {
+            return "0";
+        }
+        return (Math.round(n * 1000) / 1000).toString();
+    }
+
+    document.querySelectorAll("[data-convert-panel]").forEach((panel) => {
+        const convert = CONVERT_FNS[panel.dataset.convertPanel];
+        const input = panel.querySelector("[data-convert-input]");
+        const fromSel = panel.querySelector("[data-convert-from]");
+        const toSel = panel.querySelector("[data-convert-to]");
+        const result = panel.querySelector("[data-convert-result]");
+        if (!convert || !input || !fromSel || !toSel || !result) {
+            return;
+        }
+
+        function recompute() {
+            const value = parseFloat(input.value);
+            if (isNaN(value)) {
+                result.textContent = "0";
+                return;
+            }
+            result.textContent = formatConvertResult(convert(value, fromSel.value, toSel.value));
+        }
+
+        [input, fromSel, toSel].forEach((el) => el.addEventListener("input", recompute));
+        recompute();
+    });
+
+    const convertTabs = document.querySelector("[data-convert-tabs]");
+    if (convertTabs) {
+        convertTabs.querySelectorAll("[data-convert-tab]").forEach((btn) => {
+            btn.addEventListener("click", () => {
+                convertTabs.querySelectorAll("[data-convert-tab]").forEach((b) => b.classList.remove("is-selected"));
+                btn.classList.add("is-selected");
+                document.querySelectorAll("[data-convert-panel]").forEach((panel) => {
+                    panel.hidden = panel.dataset.convertPanel !== btn.dataset.convertTab;
+                });
+            });
+        });
+    }
+
+    /* ---- Security: real camera snapshots (server-side RTSP -> JPEG polling) ---- */
+    const CAMERA_POLL_MS = 2000;
+    const CAMERA_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="7" width="13" height="10" rx="2"/><path d="M16 10.2 21 8v8l-5-2.2Z"/><circle cx="9" cy="12" r="2.3"/></svg>';
+    let cameraList = [];
+
+    function renderCameraTiles() {
+        const grid = document.querySelector("[data-camera-grid]");
+        if (!grid) {
+            return;
+        }
+        if (cameraList.length === 0) {
+            grid.innerHTML = `<p class="modal-empty">No cameras configured.</p>`;
+            return;
+        }
+        grid.innerHTML = cameraList.map((cam) => `
+            <div class="camera-tile" data-camera-id="${cam.id}" data-camera-name="${cam.name}" tabindex="0" role="button" aria-label="View ${cam.name} camera">
+                <span class="cam-icon">${CAMERA_ICON_SVG}</span>
+                <img class="cam-feed" data-camera-img alt="${cam.name}">
+                <span class="cam-live" data-camera-status>Live</span>
+                <span class="cam-label">${cam.name}</span>
+            </div>`).join("");
+        refreshCameraSnapshots();
+        grid.querySelectorAll("[data-camera-id]").forEach((tile) => {
+            tile.addEventListener("click", () => openCameraViewer(tile.dataset.cameraId, tile.dataset.cameraName));
+            tile.addEventListener("keydown", (event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                    event.preventDefault();
+                    openCameraViewer(tile.dataset.cameraId, tile.dataset.cameraName);
+                }
+            });
+        });
+    }
+
+    /* ---- Security: full live view for a single tapped camera ---- */
+    const CAMERA_VIEWER_POLL_MS = 800;
+
+    function openCameraViewer(id, name) {
+        const viewer = document.querySelector("[data-camera-viewer]");
+        const title = document.querySelector("[data-camera-viewer-title]");
+        if (!viewer) {
+            return;
+        }
+        cameraViewerId = id;
+        if (title) {
+            title.textContent = name || "";
+        }
+        viewer.hidden = false;
+        refreshCameraViewer();
+        clearInterval(cameraViewerTimer);
+        cameraViewerTimer = setInterval(refreshCameraViewer, CAMERA_VIEWER_POLL_MS);
+    }
+
+    function closeCameraViewer() {
+        cameraViewerId = null;
+        clearInterval(cameraViewerTimer);
+        cameraViewerTimer = null;
+        const viewer = document.querySelector("[data-camera-viewer]");
+        if (viewer) {
+            viewer.hidden = true;
+        }
+    }
+
+    function refreshCameraViewer() {
+        if (!cameraViewerId) {
+            return;
+        }
+        const img = document.querySelector("[data-camera-viewer-img]");
+        const status = document.querySelector("[data-camera-viewer-status]");
+        if (!img) {
+            return;
+        }
+        const probe = new Image();
+        probe.onload = () => {
+            img.src = probe.src;
+            if (status) {
+                status.textContent = "Live";
+                status.classList.remove("is-offline");
+            }
+        };
+        probe.onerror = () => {
+            if (status) {
+                status.textContent = "Offline";
+                status.classList.add("is-offline");
+            }
+        };
+        probe.src = `/api/cameras/${cameraViewerId}/snapshot?t=${Date.now()}`;
+    }
+
+    const cameraViewerCloseBtn = document.querySelector("[data-camera-viewer-close]");
+    if (cameraViewerCloseBtn) {
+        cameraViewerCloseBtn.addEventListener("click", closeCameraViewer);
+    }
+
+    function refreshCameraSnapshots() {
+        const securityPage = document.querySelector('[data-page="security"]');
+        if (!securityPage || !securityPage.classList.contains("is-active")) {
+            return;
+        }
+        document.querySelectorAll("[data-camera-id]").forEach((tile) => {
+            const id = tile.dataset.cameraId;
+            const img = tile.querySelector("[data-camera-img]");
+            const status = tile.querySelector("[data-camera-status]");
+            if (!img) {
+                return;
+            }
+            const probe = new Image();
+            probe.onload = () => {
+                img.src = probe.src;
+                img.classList.add("is-loaded");
+                tile.classList.remove("is-offline");
+                if (status) {
+                    status.textContent = "Live";
+                }
+            };
+            probe.onerror = () => {
+                tile.classList.add("is-offline");
+                if (status) {
+                    status.textContent = "Offline";
+                }
+            };
+            probe.src = `/api/cameras/${id}/snapshot?t=${Date.now()}`;
+        });
+    }
+
+    fetch("/api/cameras")
+        .then((res) => res.json())
+        .then((cams) => {
+            cameraList = cams;
+            renderCameraTiles();
+        })
+        .catch(() => {});
+
+    setInterval(refreshCameraSnapshots, CAMERA_POLL_MS);
 })();

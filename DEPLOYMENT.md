@@ -84,3 +84,37 @@ Each event's color-coded avatar (the colored initial in the day popup) is derive
 the event title, not tied to a specific calendar or family member — there's no concept of
 per-person calendars here, just a stable, repeatable color per event name.
 
+## Cameras (RTSP)
+
+The Security page can show live-ish camera tiles from RTSP cameras (e.g. an IC Realtime NVR/camera
+set). This is opt-in: if `APP_CAMERAS` isn't set, `GET /api/cameras` returns an empty list and the
+page just shows "No cameras configured."
+
+**This requires the deploy host to reach each camera's RTSP URL directly** — same local network as
+the cameras, or a VPN (e.g. Tailscale) bridging the two. RTSP isn't reachable over the open
+internet the way HTTPS is, and port-forwarding raw RTSP to the public internet is not recommended
+(weak auth, unencrypted stream). If the app is hosted somewhere other than the cameras' own network,
+set up a VPN between the two before this will do anything.
+
+Set one comma-separated list of `Name|rtsp://...` pairs:
+
+```text
+APP_CAMERAS=Driveway|rtsp://user:pass@192.168.1.50:554/stream1,Front Door|rtsp://user:pass@192.168.1.51:554/stream1
+```
+
+Each camera's display name becomes its tile label and is slugified into an id used in the snapshot
+URL (`/api/cameras/{id}/snapshot`), e.g. "Front Door" → `front-door`.
+
+`CameraService.java` takes the "refreshing snapshot" approach rather than true streaming video:
+on each request it shells out to `ffmpeg` to pull a single JPEG frame from the RTSP stream
+(`-frames:v 1`), with an 8-second timeout, and caches that frame for 2 seconds so concurrent tile
+polls don't spawn redundant ffmpeg processes. The frontend polls each tile's snapshot endpoint
+every 2 seconds and swaps the image in once it's loaded, so it reads as "basically live" without
+running a continuous transcode process per camera. **The deploy host needs `ffmpeg` installed** —
+already included in this project's `Dockerfile`, but if you're running the jar directly outside
+Docker, install it yourself (`apt install ffmpeg` / `brew install ffmpeg`).
+
+If you outgrow snapshot polling and want real low-latency streaming video instead, look at
+[go2rtc](https://github.com/AlexxIT/go2rtc) or [MediaMTX](https://github.com/bluenviron/mediamtx) as
+a sidecar RTSP→WebRTC/HLS bridge — a bigger infrastructure change than what's here today.
+
