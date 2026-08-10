@@ -34,6 +34,11 @@ data/
 .env
 .env.*
 
+### Local TLS certs/keys ###
+*.key
+*.crt
+*.pem
+
 ### VS Code ###
 .vscode/
 
