@@ -6,8 +6,6 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: prod
       JAVA_OPTS: "-Xmx512m"
-    networks:
-      - traefik
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
     ports:
