@@ -1,0 +1,18 @@
+services:
+  springapp:
+    image: ghcr.io/rjgehan/gehan.cloud:latest
+    container_name: springapp
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      JAVA_OPTS: "-Xmx512m"
+    networks:
+      - traefik
+    labels:
+      - "com.centurylinklabs.watchtower.enable=true"
+    ports:
+      - "8080:8080"
+
+networks:
+  traefik:
+    external: true
