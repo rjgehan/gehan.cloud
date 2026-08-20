@@ -1757,6 +1757,12 @@ input[type="range"]::-moz-range-thumb {
     color: #75d4f2;
 }
 
+.fence-status-note {
+    color: var(--muted);
+    font-size: 0.72rem;
+    font-weight: 650;
+}
+
 .fan-modal-group {
     display: flex;
     flex-direction: column;
@@ -1977,26 +1983,6 @@ input[type="range"]::-moz-range-thumb {
     object-fit: contain;
     border-radius: 14px;
     background: var(--surface-strong);
-}
-
-.lock-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-    gap: 12px;
-}
-
-.lock-item {
-    display: grid;
-    gap: 12px;
-    padding: 16px;
-    border-radius: 12px;
-    background: var(--surface-strong);
-    border: 1px solid var(--line);
-    text-align: center;
-}
-
-.lock-item .lock-toggle {
-    justify-self: center;
 }
 
 /* ==========================================================================

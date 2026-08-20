@@ -14,10 +14,14 @@ APP_PIN=<8 digit PIN>
 
 ```text
 APP_USERNAME=family
-SESSION_COOKIE_SECURE=true
 ```
 
 If `APP_PIN` is not set and the user database is empty, the app generates a bootstrap PIN and prints it in the startup logs.
+
+**`SESSION_COOKIE_SECURE`** defaults to `false`. Only set it to `true` if the dashboard is actually
+served over HTTPS (e.g. behind a TLS-terminating reverse proxy) — setting it `true` while accessing
+the app over plain HTTP (including a raw `http://<lan-ip>:8080` address) causes the browser to
+silently drop the session cookie after login, which looks like an infinite login redirect loop.
 
 To reset the PIN from the command line or deploy environment, start once with:
 
@@ -107,7 +111,8 @@ URL (`/api/cameras/{id}/snapshot`), e.g. "Front Door" → `front-door`.
 
 `CameraService.java` takes the "refreshing snapshot" approach rather than true streaming video:
 on each request it shells out to `ffmpeg` to pull a single JPEG frame from the RTSP stream
-(`-frames:v 1`), with an 8-second timeout, and caches that frame for 2 seconds so concurrent tile
+(`-frames:v 1`), with a 15-second timeout (cameras vary widely in keyframe interval, and ffmpeg
+can't produce a frame until the next one arrives), and caches that frame for 2 seconds so concurrent tile
 polls don't spawn redundant ffmpeg processes. The frontend polls each tile's snapshot endpoint
 every 2 seconds and swaps the image in once it's loaded, so it reads as "basically live" without
 running a continuous transcode process per camera. **The deploy host needs `ffmpeg` installed** —
@@ -117,4 +122,36 @@ Docker, install it yourself (`apt install ffmpeg` / `brew install ffmpeg`).
 If you outgrow snapshot polling and want real low-latency streaming video instead, look at
 [go2rtc](https://github.com/AlexxIT/go2rtc) or [MediaMTX](https://github.com/bluenviron/mediamtx) as
 a sidecar RTSP→WebRTC/HLS bridge — a bigger infrastructure change than what's here today.
+
+## Lights & Fans (Home Assistant)
+
+The Lights page controls 4 ceiling fans through a Home Assistant instance's REST API. This is
+opt-in: if `HA_URL`/`HA_TOKEN` aren't set, `HomeAssistantService` never makes a request, `GET
+/api/fans` reports every fan as off, and pressing a control is a no-op — nothing breaks, it just
+doesn't do anything.
+
+1. In Home Assistant: profile icon (bottom-left) → **Security** tab → **Long-Lived Access Tokens**
+   → **Create Token**.
+2. Set:
+
+```text
+HA_URL=http://<home-assistant-host>:8123
+HA_TOKEN=<the generated long-lived access token>
+```
+
+The deploy host needs network access to `HA_URL` — same LAN, or a VPN bridging the two, same
+constraint as the RTSP cameras above.
+
+`FanController.java` hardcodes the mapping from each dashboard card to its Home Assistant entity
+ids (`fan.*` for speed, two `light.*` entities per fan for the two light channels) — there's no
+discovery UI, so adding, removing, or repointing a fan means editing that map directly. Fan speed
+is 0-10 on the dashboard, which maps to Home Assistant's native 0-100% in steps of 10. Each light
+channel is 0-5, mapped to `brightness_pct` in steps of 20. The two lights per fan are plain
+brightness dimmers in Home Assistant with no real "warm" vs "cool" distinction — that's just how
+the physical fixtures happen to be labeled, so which HA light id is warm vs cool per fan is worth
+double-checking by hand (open the fan's popup, bump "Warm Light" up from 0, see which bulb actually
+lights up) rather than assumed correct from the entity name alone.
+
+The Fence Lights tile on the same page is UI-only for now (a local toggle, not backed by any HA
+entity) — there's no fence-light hardware in Home Assistant yet.
 

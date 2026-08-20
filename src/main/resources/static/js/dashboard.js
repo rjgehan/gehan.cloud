@@ -25,6 +25,7 @@
     let lastDaily = [];
     let cameraViewerId = null;
     let cameraViewerTimer = null;
+    let fanPollTimer = null;
 
     function showPage(name) {
         const pageName = pages.some((page) => page.dataset.page === name) ? name : "home";
@@ -45,6 +46,11 @@
             refreshCameraSnapshots();
         } else {
             closeCameraViewer();
+        }
+        if (pageName === "lights") {
+            startFanPolling();
+        } else {
+            stopFanPolling();
         }
         if (location.hash.slice(1) !== pageName) {
             history.replaceState(null, "", "#" + pageName);
@@ -492,12 +498,16 @@
             return zeroLabel && v === 0 ? zeroLabel : `${v}${unit}`;
         }
 
-        function render() {
+        function paint() {
             targets.forEach((el) => { el.textContent = format(value); });
             if (ring) {
                 const pct = Math.round(((value - min) / (max - min)) * 100);
                 ring.style.setProperty("--pct", String(pct));
             }
+        }
+
+        function commit() {
+            paint();
             if (onChange) {
                 onChange(value);
             }
@@ -505,28 +515,96 @@
 
         stepper.querySelector("[data-step='up']").addEventListener("click", () => {
             value = Math.min(max, value + 1);
-            render();
+            commit();
         });
         stepper.querySelector("[data-step='down']").addEventListener("click", () => {
             value = Math.max(min, value - 1);
-            render();
+            commit();
         });
-        render();
+        paint();
     }
 
     document.querySelectorAll("[data-stepper]").forEach((stepper) => wireStepper(stepper));
 
-    /* ---- Ceiling fans (fan speed + warm/cool light stages) ---- */
+    /* ---- Ceiling fans (fan speed + warm/cool light stages), backed by Home Assistant ---- */
     const FAN_STATE = {};
     document.querySelectorAll("[data-fan-card]").forEach((card) => {
         const id = card.dataset.fanCard;
-        FAN_STATE[id] = {
-            name: card.dataset.fanName,
-            speed: parseInt(card.dataset.fanSpeed, 10),
-            warm: parseInt(card.dataset.warmStage, 10),
-            cool: parseInt(card.dataset.coolStage, 10),
-        };
+        FAN_STATE[id] = { name: card.dataset.fanName, speed: 0, warm: 0, cool: 0 };
         card.addEventListener("click", () => openFanModal(id));
+    });
+
+    function csrfHeaders() {
+        const token = document.querySelector('meta[name="csrf-token"]');
+        const header = document.querySelector('meta[name="csrf-header"]');
+        const headers = { "Content-Type": "application/json" };
+        if (token && header) {
+            headers[header.content] = token.content;
+        }
+        return headers;
+    }
+
+    async function loadFanStates() {
+        try {
+            const res = await fetch("/api/fans");
+            if (!res.ok) {
+                return;
+            }
+            const data = await res.json();
+            Object.entries(data).forEach(([id, state]) => {
+                if (!FAN_STATE[id]) {
+                    return;
+                }
+                FAN_STATE[id].speed = state.speed;
+                FAN_STATE[id].warm = state.warm;
+                FAN_STATE[id].cool = state.cool;
+                syncFanCard(id);
+            });
+        } catch (err) {
+            // Home Assistant unreachable; leave cards showing their last-known state.
+        }
+    }
+
+    const fanPostTimers = {};
+    const FAN_POST_DEBOUNCE_MS = 350;
+
+    function postFanValue(id, kind, value) {
+        const key = `${id}:${kind}`;
+        clearTimeout(fanPostTimers[key]);
+        fanPostTimers[key] = setTimeout(() => {
+            fetch(`/api/fans/${id}/${kind}`, {
+                method: "POST",
+                headers: csrfHeaders(),
+                body: JSON.stringify({ value }),
+            }).catch(() => {});
+        }, FAN_POST_DEBOUNCE_MS);
+    }
+
+    const FAN_POLL_MS = 5000;
+
+    function startFanPolling() {
+        loadFanStates();
+        clearInterval(fanPollTimer);
+        fanPollTimer = setInterval(loadFanStates, FAN_POLL_MS);
+    }
+
+    function stopFanPolling() {
+        clearInterval(fanPollTimer);
+        fanPollTimer = null;
+    }
+
+    /* ---- Fence lights (not wired to Home Assistant yet - local toggle only) ---- */
+    document.querySelectorAll("[data-fence-toggle]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+            const isOn = btn.getAttribute("aria-pressed") === "true";
+            btn.setAttribute("aria-pressed", String(!isOn));
+            const chip = btn.querySelector("[data-fence-chip]");
+            if (!chip) {
+                return;
+            }
+            chip.classList.toggle("is-on", !isOn);
+            chip.querySelector("span").textContent = !isOn ? "On" : "Off";
+        });
     });
 
     function fanChipLabel(kind, value) {
@@ -586,9 +664,9 @@
                 </div>
             </div>`;
         openModal(state.name, body);
-        wireStepper(document.querySelector('[data-stepper="fan-speed"]'), (v) => { state.speed = v; syncFanCard(id); });
-        wireStepper(document.querySelector('[data-stepper="fan-warm"]'), (v) => { state.warm = v; syncFanCard(id); });
-        wireStepper(document.querySelector('[data-stepper="fan-cool"]'), (v) => { state.cool = v; syncFanCard(id); });
+        wireStepper(document.querySelector('[data-stepper="fan-speed"]'), (v) => { state.speed = v; syncFanCard(id); postFanValue(id, "speed", v); });
+        wireStepper(document.querySelector('[data-stepper="fan-warm"]'), (v) => { state.warm = v; syncFanCard(id); postFanValue(id, "warm", v); });
+        wireStepper(document.querySelector('[data-stepper="fan-cool"]'), (v) => { state.cool = v; syncFanCard(id); postFanValue(id, "cool", v); });
     }
 
     /* ---- Now-playing transport (play/pause icon swap only) ---- */
@@ -1745,4 +1823,22 @@
         .catch(() => {});
 
     setInterval(refreshCameraSnapshots, CAMERA_POLL_MS);
+
+    /* ---- Idle timeout: return to Home after 5 minutes with no interaction ---- */
+    const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
+    let idleTimer = null;
+
+    function resetIdleTimer() {
+        clearTimeout(idleTimer);
+        idleTimer = setTimeout(() => {
+            if (location.hash.slice(1) !== "home") {
+                showPage("home");
+            }
+        }, IDLE_TIMEOUT_MS);
+    }
+
+    ["click", "touchstart", "mousemove", "keydown", "scroll", "wheel"].forEach((eventName) => {
+        window.addEventListener(eventName, resetIdleTimer, { passive: true });
+    });
+    resetIdleTimer();
 })();

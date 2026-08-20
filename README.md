@@ -2,13 +2,17 @@
 
 A wall-mounted family smart-home dashboard, built as a single Spring Boot application with no frontend framework, no build step, and no JavaScript bundler — just server-rendered HTML, vanilla CSS, and vanilla JS, designed to run unattended on a kiosk tablet 24/7.
 
-PIN login is already in place; the rest is a from-scratch redesign: a glanceable home screen, a full live weather/radar page, and placeholder control surfaces for lights, climate, security, media, and calendar that are wired up and ready to talk to a Home Assistant instance.
+PIN login, live weather/radar, real camera feeds, a real iCloud calendar, and real Home Assistant fan/light control are all wired up and working; a couple of surfaces (Fence Lights) are still stubbed pending hardware.
 
 ## What it does
 
-- **Home** — the always-on idle screen. Live clock, current conditions, a sun-position arc that dims after sunset, a UV gauge, next tide, and a rotating "what's on today" ticker. No controls here by design — this screen is meant to be glanced at, not tapped.
-- **Weather** — current conditions, an hourly temperature chart, a 4-day forecast, a UV gauge, sunrise/sunset, and a **live rain radar map with a ~60-minute forecast** (Leaflet + LibreWXR radar/nowcast imagery over a dark CARTO basemap), plus marine conditions (water temp, wave height) and tide times pulled from the nearest NOAA station.
-- **Lights, Climate, Security, Media, Calendar** — full control UIs (toggles, sliders, a wind-style compass, scene buttons, an agenda list) that don't call anything yet. They're built to be wired to a Home Assistant API without needing a redesign.
+- **Home** — the always-on idle screen. Live clock, current conditions, a sun-position arc that dims after sunset, a UV gauge, next tide, and a rotating "what's on today" ticker. Shows a top-of-screen air quality alert when the AQI is bad enough to matter. No controls here by design — this screen is meant to be glanced at, not tapped. Auto-returns here after 5 minutes of no interaction on any other page.
+- **Weather** — current conditions, an hourly temperature chart, a 7-day forecast (tap a day for an hour-by-hour breakdown), a UV gauge, sunrise/sunset, air quality, and a **live rain radar map with a ~60-minute forecast** (Leaflet + LibreWXR radar/nowcast imagery over a dark CARTO basemap), plus marine conditions (water temp, wave height) and tide times pulled from the nearest NOAA station.
+- **Lights** — 4 ceiling fans (speed + two light channels each) with live state and real on/off/speed control via a Home Assistant instance, plus a Fence Lights tile that's UI-only until that hardware is wired up in HA.
+- **Cameras** — live-ish snapshot tiles from RTSP cameras (opt-in via `APP_CAMERAS`), tap a tile for a fullscreen view.
+- **Music** — Music Assistant-style now-playing UI and one-tap scene buttons (not wired to a backend yet).
+- **Calendar** — a real iCloud calendar over CalDAV (opt-in via `APP_ICLOUD_*`), month view with a day-detail popup.
+- **Kitchen** — cooking timers with meat-specific presets, and a unit converter (volume/weight/temperature).
 - **Theme** — eight color themes (Dusk, Sunrise, Midday, Sunset, Night, Autumn, Holiday, Winter) that swap live via CSS custom properties and persist in `localStorage`.
 
 The whole UI is one continuously-mounted single-page app: the sidebar just toggles which `data-page` section is visible client-side, so navigation never triggers a reload — nav important for something that's meant to sit on a wall.
@@ -39,7 +43,12 @@ Weather, marine conditions, tides, and radar imagery are all real, fetched from 
 ./mvnw spring-boot:run
 ```
 
-The app boots on `:8080`. On first run with no existing users, it generates a bootstrap PIN and prints it to the startup logs (see [DEPLOYMENT.md](DEPLOYMENT.md) for setting your own via `APP_PIN`, and for the outbound network access the weather/radar features need).
+Drop a `.env` file in the project root (gitignored) with any of the optional integration variables
+below — it's loaded automatically on local runs (`SpringDockerTestApplication.loadDotEnvIfPresent`)
+and never overrides a real environment variable, so it has zero effect on Docker/production, which
+never sees a `.env` file to begin with.
+
+The app boots on `:8080`. On first run with no existing users, it generates a bootstrap PIN and prints it to the startup logs (see [DEPLOYMENT.md](DEPLOYMENT.md) for setting your own via `APP_PIN`, the outbound network access the weather/radar features need, and every optional integration's env vars).
 
 ## Testing
 

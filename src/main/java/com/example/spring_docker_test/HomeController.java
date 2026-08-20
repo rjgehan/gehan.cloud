@@ -31,6 +31,8 @@ public class HomeController {
                 + themePage();
 
         String body = """
+                <meta name="csrf-token" content="%s">
+                <meta name="csrf-header" content="%s">
                 <main class="dashboard-shell">
                     <section class="dashboard-stage" aria-live="polite">
                         %s
@@ -60,7 +62,9 @@ public class HomeController {
                 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
                 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
                 <script src="/js/dashboard.js"></script>
-                """.formatted(pages, navItems(), csrfToken.getParameterName(), csrfToken.getToken(), icon("logout"), icon("close"));
+                """.formatted(
+                        csrfToken.getToken(), csrfToken.getHeaderName(),
+                        pages, navItems(), csrfToken.getParameterName(), csrfToken.getToken(), icon("logout"), icon("close"));
 
         return page("Home", body);
     }
@@ -360,10 +364,11 @@ public class HomeController {
        ====================================================================== */
 
     private static String lightsPage() {
-        String fans = fanCard("master", "Master Fan", 4, 2, 0)
+        String fans = fanCard("kitchen", "Kitchen Fan", 0, 0, 0)
                 + fanCard("bunkbed", "Bunkbed Fan", 0, 0, 0)
-                + fanCard("double", "Double Beds Fan", 2, 0, 3)
-                + fanCard("living", "Living Room Fan", 6, 4, 0);
+                + fanCard("double", "Double Beds Fan", 0, 0, 0)
+                + fanCard("living", "Living Room Fan", 0, 0, 0)
+                + fenceLightsCard();
 
         return """
                 <section class="dashboard-page" data-page="lights">
@@ -372,13 +377,28 @@ public class HomeController {
                             <p class="eyebrow">Lights &amp; Fans</p>
                             <h1>Ceiling Fans</h1>
                         </div>
-                        <span class="page-sub">Not yet connected &middot; will control Home Assistant devices</span>
+                        <span class="page-sub">Connected via Home Assistant</span>
                     </div>
                     <div class="tile-grid" style="grid-template-columns:repeat(auto-fit,minmax(240px,1fr))">
                         %s
                     </div>
                 </section>
                 """.formatted(fans);
+    }
+
+    private static String fenceLightsCard() {
+        return """
+                <button type="button" class="card fan-card fence-card" data-fence-toggle aria-pressed="false">
+                    <div class="card-head">
+                        <h3>Fence Lights</h3>
+                        <span class="icon-badge">%s</span>
+                    </div>
+                    <div class="fan-card-status">
+                        <span class="fan-status-chip" data-fence-chip>%s<span>Off</span></span>
+                    </div>
+                    <span class="fence-status-note">Not connected yet</span>
+                </button>
+                """.formatted(icon("lights"), icon("lights"));
     }
 
     private static String fanCard(String id, String name, int fanSpeed, int warmStage, int coolStage) {
