@@ -483,49 +483,6 @@
         btn.addEventListener("click", () => btn.classList.toggle("is-active"));
     });
 
-    /* ---- Stepper (reused for thermostat, fan speed, light stages) ---- */
-    function wireStepper(stepper, onChange) {
-        const key = stepper.dataset.stepper;
-        const targets = [...document.querySelectorAll(`[data-stepper-target="${key}"]`)];
-        const ring = document.querySelector(`[data-thermo-ring="${key}"]`);
-        const min = parseInt(stepper.dataset.min || "0", 10);
-        const max = parseInt(stepper.dataset.max || "10", 10);
-        const unit = stepper.dataset.unit || "";
-        const zeroLabel = stepper.dataset.zeroLabel || "";
-        let value = parseInt(stepper.dataset.value || String(min), 10);
-
-        function format(v) {
-            return zeroLabel && v === 0 ? zeroLabel : `${v}${unit}`;
-        }
-
-        function paint() {
-            targets.forEach((el) => { el.textContent = format(value); });
-            if (ring) {
-                const pct = Math.round(((value - min) / (max - min)) * 100);
-                ring.style.setProperty("--pct", String(pct));
-            }
-        }
-
-        function commit() {
-            paint();
-            if (onChange) {
-                onChange(value);
-            }
-        }
-
-        stepper.querySelector("[data-step='up']").addEventListener("click", () => {
-            value = Math.min(max, value + 1);
-            commit();
-        });
-        stepper.querySelector("[data-step='down']").addEventListener("click", () => {
-            value = Math.max(min, value - 1);
-            commit();
-        });
-        paint();
-    }
-
-    document.querySelectorAll("[data-stepper]").forEach((stepper) => wireStepper(stepper));
-
     /* ---- Ceiling fans (fan speed + warm/cool light stages), backed by Home Assistant ---- */
     const FAN_STATE = {};
     document.querySelectorAll("[data-fan-card]").forEach((card) => {
@@ -565,19 +522,49 @@
         }
     }
 
-    const fanPostTimers = {};
-    const FAN_POST_DEBOUNCE_MS = 350;
+    function sendFanValue(id, kind, value) {
+        fetch(`/api/fans/${id}/${kind}`, {
+            method: "POST",
+            headers: csrfHeaders(),
+            body: JSON.stringify({ value }),
+        }).catch(() => {});
+    }
 
-    function postFanValue(id, kind, value) {
+    // Fires on the leading edge (instant if idle), then at most once per `wait` while calls keep
+    // coming in, and always finishes with one trailing call so the final value is never dropped.
+    function throttleTrailing(fn, wait) {
+        let lastCall = 0;
+        let timer = null;
+        let pendingArgs = null;
+        return (...args) => {
+            pendingArgs = args;
+            const now = Date.now();
+            const remaining = wait - (now - lastCall);
+            if (remaining <= 0) {
+                lastCall = now;
+                clearTimeout(timer);
+                timer = null;
+                fn(...pendingArgs);
+            } else if (!timer) {
+                timer = setTimeout(() => {
+                    lastCall = Date.now();
+                    timer = null;
+                    fn(...pendingArgs);
+                }, remaining);
+            }
+        };
+    }
+
+    const fanSliderThrottled = {};
+    const FAN_SLIDER_THROTTLE_MS = 400;
+
+    // For continuous slider drags: updates land periodically while dragging, not just on release.
+    function throttledPostFanValue(id, kind, value) {
         const key = `${id}:${kind}`;
-        clearTimeout(fanPostTimers[key]);
-        fanPostTimers[key] = setTimeout(() => {
-            fetch(`/api/fans/${id}/${kind}`, {
-                method: "POST",
-                headers: csrfHeaders(),
-                body: JSON.stringify({ value }),
-            }).catch(() => {});
-        }, FAN_POST_DEBOUNCE_MS);
+        if (!fanSliderThrottled[key]) {
+            fanSliderThrottled[key] = throttleTrailing((v) => sendFanValue(id, kind, v), FAN_SLIDER_THROTTLE_MS);
+        }
+        fanSliderThrottled[key](value);
     }
 
     const FAN_POLL_MS = 5000;
@@ -631,6 +618,59 @@
         });
     }
 
+    const FAN_SLIDER_COLORS = { speed: "var(--accent)", warm: "#f2a65a", cool: "#75d4f2" };
+
+    function paintFanSliderTrack(slider, kind) {
+        const min = Number(slider.min);
+        const max = Number(slider.max);
+        const pct = ((Number(slider.value) - min) / (max - min)) * 100;
+        const color = FAN_SLIDER_COLORS[kind];
+        slider.style.background = `linear-gradient(to right, ${color} ${pct}%, var(--line) ${pct}%)`;
+    }
+
+    function wireFanSlider(slider, kind, onChange) {
+        const valueEl = document.querySelector(`[data-fan-slider-value="${kind}"]`);
+        const min = Number(slider.min);
+        const max = Number(slider.max);
+        function paint() {
+            const v = Number(slider.value);
+            if (valueEl) {
+                valueEl.textContent = v === 0 ? "Off" : String(v);
+            }
+            paintFanSliderTrack(slider, kind);
+        }
+        function commit(v) {
+            slider.value = String(v);
+            paint();
+            onChange(Number(slider.value));
+        }
+        slider.addEventListener("input", () => commit(Number(slider.value)));
+        paint();
+        return {
+            setValue(v) {
+                commit(Math.max(min, Math.min(max, v)));
+            },
+            step(delta) {
+                commit(Math.max(min, Math.min(max, Number(slider.value) + delta)));
+            },
+        };
+    }
+
+    function fanSliderRow(kind, label, max, value) {
+        return `
+            <div class="fan-modal-slider-row">
+                <div class="fan-modal-slider-head">
+                    <span class="fan-modal-label">${label}</span>
+                    <span class="fan-modal-value" data-fan-slider-value="${kind}">${value === 0 ? "Off" : value}</span>
+                </div>
+                <div class="fan-slider-track-row">
+                    <button type="button" class="fan-slider-step" data-fan-slider-step="${kind}" data-dir="down" aria-label="Decrease ${label}">&minus;</button>
+                    <input type="range" class="fan-slider fan-slider-${kind}" min="0" max="${max}" step="1" value="${value}" data-fan-slider="${kind}">
+                    <button type="button" class="fan-slider-step" data-fan-slider-step="${kind}" data-dir="up" aria-label="Increase ${label}">+</button>
+                </div>
+            </div>`;
+    }
+
     function openFanModal(id) {
         const state = FAN_STATE[id];
         if (!state) {
@@ -638,35 +678,30 @@
         }
         const body = `
             <div class="fan-modal-group">
-                <div class="fan-modal-row">
-                    <span class="fan-modal-label">Fan Speed</span>
-                    <div class="stepper" data-stepper="fan-speed" data-min="0" data-max="10" data-value="${state.speed}" data-zero-label="Off">
-                        <button type="button" data-step="down">&minus;</button>
-                        <span class="stepper-value" data-stepper-target="fan-speed"></span>
-                        <button type="button" data-step="up">+</button>
-                    </div>
-                </div>
-                <div class="fan-modal-row">
-                    <span class="fan-modal-label">Warm Light</span>
-                    <div class="stepper stepper-warm" data-stepper="fan-warm" data-min="0" data-max="5" data-value="${state.warm}" data-zero-label="Off">
-                        <button type="button" data-step="down">&minus;</button>
-                        <span class="stepper-value" data-stepper-target="fan-warm"></span>
-                        <button type="button" data-step="up">+</button>
-                    </div>
-                </div>
-                <div class="fan-modal-row">
-                    <span class="fan-modal-label">Cool Light</span>
-                    <div class="stepper stepper-cool" data-stepper="fan-cool" data-min="0" data-max="5" data-value="${state.cool}" data-zero-label="Off">
-                        <button type="button" data-step="down">&minus;</button>
-                        <span class="stepper-value" data-stepper-target="fan-cool"></span>
-                        <button type="button" data-step="up">+</button>
-                    </div>
-                </div>
+                ${fanSliderRow("speed", "Fan Speed", 10, state.speed)}
+                ${fanSliderRow("warm", "Warm Light", 5, state.warm)}
+                ${fanSliderRow("cool", "Cool Light", 5, state.cool)}
+                <button type="button" class="fan-modal-all-off" data-fan-all-off>All Off</button>
             </div>`;
         openModal(state.name, body);
-        wireStepper(document.querySelector('[data-stepper="fan-speed"]'), (v) => { state.speed = v; syncFanCard(id); postFanValue(id, "speed", v); });
-        wireStepper(document.querySelector('[data-stepper="fan-warm"]'), (v) => { state.warm = v; syncFanCard(id); postFanValue(id, "warm", v); });
-        wireStepper(document.querySelector('[data-stepper="fan-cool"]'), (v) => { state.cool = v; syncFanCard(id); postFanValue(id, "cool", v); });
+        const sliders = {
+            speed: wireFanSlider(document.querySelector('[data-fan-slider="speed"]'), "speed", (v) => { state.speed = v; syncFanCard(id); throttledPostFanValue(id, "speed", v); }),
+            warm: wireFanSlider(document.querySelector('[data-fan-slider="warm"]'), "warm", (v) => { state.warm = v; syncFanCard(id); throttledPostFanValue(id, "warm", v); }),
+            cool: wireFanSlider(document.querySelector('[data-fan-slider="cool"]'), "cool", (v) => { state.cool = v; syncFanCard(id); throttledPostFanValue(id, "cool", v); }),
+        };
+        document.querySelectorAll("[data-fan-slider-step]").forEach((btn) => {
+            btn.addEventListener("click", () => {
+                sliders[btn.dataset.fanSliderStep].step(btn.dataset.dir === "up" ? 1 : -1);
+            });
+        });
+        const allOffBtn = document.querySelector("[data-fan-all-off]");
+        if (allOffBtn) {
+            allOffBtn.addEventListener("click", () => {
+                sliders.speed.setValue(0);
+                sliders.warm.setValue(0);
+                sliders.cool.setValue(0);
+            });
+        }
     }
 
     /* ---- Now-playing transport (play/pause icon swap only) ---- */
@@ -766,8 +801,6 @@
         if (uv >= 3) return { label: "Moderate", cls: "pill-warn", tip: "Light sunblock" };
         return { label: "Low", cls: "pill-good", tip: "No sunblock needed" };
     }
-
-    const AQI_ALERT_THRESHOLD = 100;
 
     function aqiBucket(aqi) {
         if (aqi >= 301) return { label: "Hazardous", cls: "pill-bad" };
@@ -1013,7 +1046,7 @@
         });
 
         setAll("[data-wx-aqi]", (el) => { el.textContent = data.aqi != null ? data.aqi : "—"; });
-        renderAirAlert(data.aqi);
+        renderAirAlert(data.aqi, data.aqiAlert);
     }
 
     function openDayDetail(index) {
@@ -1041,12 +1074,12 @@
         openModal(title, body);
     }
 
-    function renderAirAlert(aqi) {
+    function renderAirAlert(aqi, aqiAlert) {
         const widget = document.querySelector("[data-home-air-alert]");
         if (!widget) {
             return;
         }
-        if (aqi == null || aqi <= AQI_ALERT_THRESHOLD) {
+        if (aqi == null || !aqiAlert) {
             widget.hidden = true;
             return;
         }

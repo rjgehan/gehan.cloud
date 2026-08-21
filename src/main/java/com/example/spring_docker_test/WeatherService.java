@@ -76,25 +76,47 @@ public class WeatherService {
         CurrentConditions current = forecast == null ? null : toCurrent(forecast);
         List<HourPoint> hourly = forecast == null ? List.of() : toHourly(forecast);
         List<DayPoint> daily = forecast == null ? List.of() : toDaily(forecast);
-        return new WeatherSnapshot(current, hourly, daily, fetchMarine(), fetchTides(), fetchAirQuality());
+        AirQualityResult air = fetchAirQuality();
+        return new WeatherSnapshot(current, hourly, daily, fetchMarine(), fetchTides(), air.aqi(), air.alert());
     }
 
-    private Integer fetchAirQuality() {
+    // Open-Meteo's `current.us_aqi` uses whichever of the 1-hour or 8-hour rolling ozone average is
+    // worse, which spikes on sunny afternoons well above what EPA's official (8-hour-only) AQI - and
+    // therefore most phone weather apps - would show for the same moment. To avoid alerting on a
+    // single noisy hourly reading, the alert only fires when the last 2 hourly readings both clear
+    // the threshold, not just the live snapshot.
+    private static final int AQI_ALERT_THRESHOLD = 150;
+
+    private AirQualityResult fetchAirQuality() {
         try {
             AirQualityResponse resp = airQualityClient.get()
                     .uri(b -> b.path("/v1/air-quality")
                             .queryParam("latitude", LAT)
                             .queryParam("longitude", LON)
                             .queryParam("current", "us_aqi")
+                            .queryParam("hourly", "us_aqi")
+                            .queryParam("past_hours", 1)
+                            .queryParam("forecast_hours", 0)
                             .queryParam("timezone", "America/New_York")
                             .build())
                     .retrieve()
                     .body(AirQualityResponse.class);
-            return resp == null || resp.current() == null ? null : resp.current().usAqi();
+            if (resp == null || resp.current() == null) {
+                return new AirQualityResult(null, false);
+            }
+            Integer currentAqi = resp.current().usAqi();
+            List<Integer> recentHours = resp.hourly() == null ? null : resp.hourly().usAqi();
+            boolean sustained = recentHours != null && recentHours.size() >= 2
+                    && recentHours.stream().skip(recentHours.size() - 2)
+                            .allMatch(v -> v != null && v >= AQI_ALERT_THRESHOLD);
+            return new AirQualityResult(currentAqi, sustained);
         } catch (RuntimeException e) {
             log.warn("Failed to fetch air quality: {}", e.toString(), e);
-            return null;
+            return new AirQualityResult(null, false);
         }
+    }
+
+    private record AirQualityResult(Integer aqi, boolean alert) {
     }
 
     private OpenMeteoResponse fetchForecast() {
@@ -342,10 +364,15 @@ public class WeatherService {
             @JsonProperty("precipitation_probability_max") List<Integer> precipProbabilityMax) {
     }
 
-    private record AirQualityResponse(@JsonProperty("current") AirQualityCurrent current) {
+    private record AirQualityResponse(
+            @JsonProperty("current") AirQualityCurrent current,
+            @JsonProperty("hourly") AirQualityHourly hourly) {
     }
 
     private record AirQualityCurrent(@JsonProperty("us_aqi") Integer usAqi) {
+    }
+
+    private record AirQualityHourly(@JsonProperty("us_aqi") List<Integer> usAqi) {
     }
 
     private record MarineResponse(@JsonProperty("current") MarineCurrent current) {
@@ -371,7 +398,8 @@ public class WeatherService {
             List<DayPoint> daily,
             Marine marine,
             List<TidePoint> tides,
-            Integer aqi) {
+            Integer aqi,
+            boolean aqiAlert) {
     }
 
     public record CurrentConditions(

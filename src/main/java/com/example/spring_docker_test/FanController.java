@@ -49,7 +49,15 @@ public class FanController {
             return ResponseEntity.notFound().build();
         }
         int value = clamp(req.value(), 0, 10);
-        ha.callService("fan", "set_percentage", mapping.fanEntity(), Map.of("percentage", value * 10));
+        if (value == 0) {
+            // set_percentage(0) doesn't reliably turn this integration off - it just clamps to the
+            // minimum non-zero step and stays on - so zero needs an explicit turn_off.
+            ha.callService("fan", "turn_off", mapping.fanEntity(), Map.of());
+        } else {
+            // set_percentage alone doesn't power the fan on from an off state on this integration -
+            // it silently no-ops - so turn_on (which accepts percentage directly) is used instead.
+            ha.callService("fan", "turn_on", mapping.fanEntity(), Map.of("percentage", value * 10));
+        }
         return ResponseEntity.ok().build();
     }
 
