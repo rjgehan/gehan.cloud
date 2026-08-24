@@ -28,4 +28,4 @@ jobs:
         with:
           context: .
           push: true
-          tags: ghcr.io/rjgehan/gehan.cloud:latest
+          tags: ghcr.io/rjgehan/beach-dashboard:latest
