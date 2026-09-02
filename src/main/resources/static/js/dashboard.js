@@ -569,10 +569,15 @@
 
     const FAN_POLL_MS = 5000;
 
-    function startFanPolling() {
+    function pollLights() {
         loadFanStates();
+        loadFenceState();
+    }
+
+    function startFanPolling() {
+        pollLights();
         clearInterval(fanPollTimer);
-        fanPollTimer = setInterval(loadFanStates, FAN_POLL_MS);
+        fanPollTimer = setInterval(pollLights, FAN_POLL_MS);
     }
 
     function stopFanPolling() {
@@ -580,17 +585,50 @@
         fanPollTimer = null;
     }
 
-    /* ---- Fence lights (not wired to Home Assistant yet - local toggle only) ---- */
-    document.querySelectorAll("[data-fence-toggle]").forEach((btn) => {
-        btn.addEventListener("click", () => {
-            const isOn = btn.getAttribute("aria-pressed") === "true";
-            btn.setAttribute("aria-pressed", String(!isOn));
-            const chip = btn.querySelector("[data-fence-chip]");
-            if (!chip) {
+    /* ---- Fence lights: the two gazebo sockets, switched together as one card ---- */
+    function syncFenceCard(on, available) {
+        const btn = document.querySelector("[data-fence-toggle]");
+        if (!btn) {
+            return;
+        }
+        btn.setAttribute("aria-pressed", String(on));
+        // Outdoor plugs drop off HA entirely when unplugged; don't pretend they're just off.
+        btn.disabled = !available;
+        const chip = btn.querySelector("[data-fence-chip]");
+        if (chip) {
+            chip.classList.toggle("is-on", on);
+            chip.querySelector("span").textContent = on ? "On" : "Off";
+        }
+        const note = btn.querySelector("[data-fence-note]");
+        if (note) {
+            note.textContent = available ? "" : "Sockets unavailable";
+            note.hidden = available;
+        }
+    }
+
+    async function loadFenceState() {
+        try {
+            const res = await fetch("/api/fence-lights");
+            if (!res.ok) {
                 return;
             }
-            chip.classList.toggle("is-on", !isOn);
-            chip.querySelector("span").textContent = !isOn ? "On" : "Off";
+            const data = await res.json();
+            syncFenceCard(data.on, data.available);
+        } catch (err) {
+            // Home Assistant unreachable; leave the card showing its last-known state.
+        }
+    }
+
+    document.querySelectorAll("[data-fence-toggle]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+            const on = btn.getAttribute("aria-pressed") !== "true";
+            // Flip straight away; the next poll corrects it if the sockets didn't follow.
+            syncFenceCard(on, true);
+            fetch("/api/fence-lights", {
+                method: "POST",
+                headers: csrfHeaders(),
+                body: JSON.stringify({ on }),
+            }).catch(() => {});
         });
     });
 

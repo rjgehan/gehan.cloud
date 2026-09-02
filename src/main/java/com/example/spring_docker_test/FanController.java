@@ -93,27 +93,32 @@ public class FanController {
                 lightStage(ha.state(mapping.coolEntity())));
     }
 
+    // A running fan must never report 0: speed 0 means "off" on the dashboard. A fan sitting below
+    // the smallest step this dashboard can show (or reporting no percentage at all) rounds down to
+    // 0, which read as Off while the fan was plainly still turning - so on always floors to 1.
     private static int fanSpeed(HomeAssistantService.EntityState state) {
         if (state == null || !"on".equals(state.state())) {
             return 0;
         }
         Object percentage = state.attributes().get("percentage");
         if (!(percentage instanceof Number n)) {
-            return 0;
+            return 1;
         }
-        return clamp((int) Math.round(n.doubleValue() / 10.0), 0, 10);
+        return clamp((int) Math.round(n.doubleValue() / 10.0), 1, 10);
     }
 
+    // Same rule as fanSpeed: a lit light dimmed below the smallest stage still floors to 1 rather
+    // than rounding away to 0/Off.
     private static int lightStage(HomeAssistantService.EntityState state) {
         if (state == null || !"on".equals(state.state())) {
             return 0;
         }
         Object brightness = state.attributes().get("brightness");
         if (!(brightness instanceof Number n)) {
-            return 0;
+            return 1;
         }
         double pct = n.doubleValue() / 255.0 * 100.0;
-        return clamp((int) Math.round(pct / 20.0), 0, 5);
+        return clamp((int) Math.round(pct / 20.0), 1, 5);
     }
 
     private static int clamp(int value, int min, int max) {

@@ -1707,34 +1707,41 @@ input[type="range"]::-moz-range-thumb {
     font-size: 0.76rem;
 }
 
+/* On state: the whole chip fills with its colour so it reads across the room.
+   A tinted border alone looked near-identical to the off state at a glance. */
 .fan-status-chip.is-on {
-    border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+    --chip-colour: var(--accent);
+    --chip-ink: var(--accent-ink);
+    background: var(--chip-colour);
+    border-color: var(--chip-colour);
+    box-shadow: 0 4px 14px color-mix(in srgb, var(--chip-colour) 35%, transparent);
 }
 
-.fan-status-chip.is-on svg {
-    color: var(--accent);
+.fan-status-chip.is-on svg,
+.fan-status-chip.is-on span {
+    color: var(--chip-ink);
 }
 
 .fan-status-chip.chip-warm.is-on {
-    border-color: rgba(242, 166, 90, 0.4);
-}
-
-.fan-status-chip.chip-warm.is-on svg {
-    color: #f2a65a;
+    --chip-colour: #f2a65a;
+    --chip-ink: #2e1a05;
 }
 
 .fan-status-chip.chip-cool.is-on {
-    border-color: rgba(117, 212, 242, 0.4);
-}
-
-.fan-status-chip.chip-cool.is-on svg {
-    color: #75d4f2;
+    --chip-colour: #75d4f2;
+    --chip-ink: #062034;
 }
 
 .fence-status-note {
     color: var(--muted);
     font-size: 0.72rem;
     font-weight: 650;
+}
+
+/* Sockets offline: the card stays readable but clearly can't be tapped. */
+.fence-card:disabled {
+    opacity: 0.55;
+    cursor: default;
 }
 
 .fan-modal-group {

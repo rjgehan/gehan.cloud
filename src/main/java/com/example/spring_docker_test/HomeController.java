@@ -396,7 +396,7 @@ public class HomeController {
                     <div class="fan-card-status">
                         <span class="fan-status-chip" data-fence-chip>%s<span>Off</span></span>
                     </div>
-                    <span class="fence-status-note">Not connected yet</span>
+                    <span class="fence-status-note" data-fence-note hidden></span>
                 </button>
                 """.formatted(icon("lights"), icon("lights"));
     }
