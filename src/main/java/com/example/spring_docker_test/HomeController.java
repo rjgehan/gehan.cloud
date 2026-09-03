@@ -258,6 +258,14 @@ public class HomeController {
                                     <span class="stat-note" data-tide-following></span>
                                 </div>
                             </div>
+                            <div class="stat-card tint-success" data-dinner-tile data-target="kitchen" role="button" tabindex="0" hidden>
+                                <span class="stat-icon-badge">%s</span>
+                                <div class="stat-body">
+                                    <span class="stat-label">Dinner</span>
+                                    <span class="stat-value" data-dinner-name>&mdash;</span>
+                                    <span class="stat-note" data-dinner-note></span>
+                                </div>
+                            </div>
                             <div class="stat-card tint-sand" data-target="calendar" role="button" tabindex="0">
                                 <span class="stat-icon-badge">%s</span>
                                 <div class="stat-body">
@@ -290,7 +298,8 @@ public class HomeController {
                         </div>
                     </div>
                 </section>
-                """.formatted(icon("weather", "wx-icon"), icon("weather"), icon("waves"), icon("calendar"), icon("timer"), icon("warn"));
+                """.formatted(icon("weather", "wx-icon"), icon("weather"), icon("waves"), icon("kitchen"),
+                        icon("calendar"), icon("timer"), icon("warn"));
     }
 
     /* ======================================================================

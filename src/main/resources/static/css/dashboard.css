@@ -987,6 +987,10 @@ input[type="range"]::-moz-range-thumb {
     background: linear-gradient(135deg, color-mix(in srgb, var(--sand) 16%, transparent), var(--surface-soft) 60%);
 }
 
+.stat-card.tint-success {
+    background: linear-gradient(135deg, color-mix(in srgb, var(--success) 14%, transparent), var(--surface-soft) 60%);
+}
+
 .stat-icon-badge {
     display: grid;
     place-items: center;
@@ -1000,6 +1004,7 @@ input[type="range"]::-moz-range-thumb {
 .tint-warn .stat-icon-badge { color: var(--warn); }
 .tint-accent .stat-icon-badge { color: var(--accent); }
 .tint-sand .stat-icon-badge { color: var(--sand); }
+.tint-success .stat-icon-badge { color: var(--success); }
 
 .stat-icon-badge svg {
     width: 22px;

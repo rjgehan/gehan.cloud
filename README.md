@@ -6,7 +6,7 @@ PIN login, live weather/radar, real camera feeds, a real iCloud calendar, real H
 
 ## What it does
 
-- **Home** — the always-on idle screen. Live clock, current conditions, a sun-position arc that dims after sunset, a UV gauge, next tide, and a rotating "what's on today" ticker. Shows a top-of-screen air quality alert when the AQI is bad enough to matter. No controls here by design — this screen is meant to be glanced at, not tapped. Auto-returns here after 5 minutes of no interaction on any other page.
+- **Home** — the always-on idle screen. Live clock, current conditions, a sun-position arc that dims after sunset, a UV gauge, next tide, what's for dinner tonight, and a rotating "what's on today" ticker. Shows a top-of-screen air quality alert when the AQI is bad enough to matter. No controls here by design — this screen is meant to be glanced at, not tapped. Auto-returns here after 5 minutes of no interaction on any other page.
 - **Weather** — current conditions, an hourly temperature chart, a 7-day forecast (tap a day for an hour-by-hour breakdown), a UV gauge, sunrise/sunset, air quality, and a **live rain radar map with a ~60-minute forecast** (Leaflet + LibreWXR radar/nowcast imagery over a dark CARTO basemap), plus marine conditions (water temp, wave height) and tide times pulled from the nearest NOAA station.
 - **Lights** — 4 ceiling fans (speed + two light channels each) with live state and real on/off/speed control via a Home Assistant instance, plus a Fence Lights tile driving the two gazebo sockets.
 - **Cameras** — live-ish snapshot tiles from RTSP cameras (opt-in via `APP_CAMERAS`), tap a tile for a fullscreen view.

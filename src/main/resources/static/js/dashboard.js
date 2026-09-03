@@ -2121,6 +2121,48 @@
 
     renderPinnedRecipe();
 
+    /* ---- Tonight's dinner, on the Home glance screen ---- */
+    const DINNER_POLL_MS = 10 * 60 * 1000;
+
+    async function loadDinner() {
+        const tile = document.querySelector("[data-dinner-tile]");
+        if (!tile) {
+            return;
+        }
+        const nameEl = tile.querySelector("[data-dinner-name]");
+        const noteEl = tile.querySelector("[data-dinner-note]");
+        const res = await kitchenGet("/api/kitchen/today");
+        if (!res.ok) {
+            // No planner configured or it's unreachable: say nothing rather than guess. The tile
+            // reappears on its own once the planner answers again.
+            tile.hidden = true;
+            return;
+        }
+        const dinner = (res.data.meals || []).find((meal) => meal.mealType === "DINNER");
+        const items = dinner ? dinner.items || [] : [];
+        tile.hidden = false;
+        if (!items.length) {
+            nameEl.textContent = "Nothing planned";
+            noteEl.textContent = "";
+            return;
+        }
+        // A dinner can be a main plus sides; the first item is the headline, the rest the note.
+        nameEl.textContent = items[0].name;
+        const extras = items.slice(1).map((item) => item.name);
+        if (extras.length) {
+            noteEl.textContent = `with ${extras.join(", ")}`;
+        } else if (items[0].kind === "PLACE") {
+            noteEl.textContent = "Eating out";
+        } else if (items[0].totalTimeMinutes) {
+            noteEl.textContent = `${items[0].totalTimeMinutes} min`;
+        } else {
+            noteEl.textContent = "";
+        }
+    }
+
+    loadDinner();
+    setInterval(loadDinner, DINNER_POLL_MS);
+
     function startKitchenPolling() {
         loadMealPlan();
         clearInterval(kitchenPollTimer);

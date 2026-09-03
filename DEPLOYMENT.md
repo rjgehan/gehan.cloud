@@ -160,8 +160,8 @@ instead of showing a dead socket as merely switched off.
 
 ## Kitchen (Meal Planner)
 
-The Kitchen page's week panel and recipe popup, and the whole Grocery page, read from the Meal
-Planner's integration API. Opt-in the same way as everything else: with `MEALS_URL`/`MEALS_API_KEY`
+The Kitchen page's week panel and recipe popup, the Home page's dinner tile, and the whole
+Grocery page all read from the Meal Planner's integration API. Opt-in the same way as everything else: with `MEALS_URL`/`MEALS_API_KEY`
 unset, `/api/kitchen/*` answers `503` and those panels say "Meal planner not connected". The timers
 and the converter are local and work regardless.
 

@@ -40,6 +40,12 @@ public class KitchenController {
         return respond(meals.plan(from, PLAN_DAYS));
     }
 
+    /** Just tonight - the Home page's dinner tile, which shouldn't pull a whole week for one line. */
+    @GetMapping("/today")
+    public ResponseEntity<MealPlannerService.Day> today() {
+        return respond(meals.today());
+    }
+
     @GetMapping("/grocery")
     public ResponseEntity<List<MealPlannerService.GroceryItem>> grocery() {
         return respond(meals.grocery());
