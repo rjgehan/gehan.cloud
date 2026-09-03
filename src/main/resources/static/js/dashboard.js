@@ -978,7 +978,9 @@
     function renderChart(hourly) {
         setAll("[data-wx-chart]", (el) => {
             if (!hourly || hourly.length === 0) {
-                el.innerHTML = "";
+                // Leave whatever is already drawn. An empty card reads as broken, and a stale
+                // curve is better than a hole - the same call's "Weather unavailable" label is
+                // what says the data is old. A chart never drawn yet just stays empty.
                 return;
             }
             const rect = el.getBoundingClientRect();

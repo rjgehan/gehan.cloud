@@ -29,6 +29,8 @@ public class WeatherService {
     private static final DateTimeFormatter NOAA_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm");
 
     private static final long RADAR_CACHE_TTL_SECONDS = 300;
+    /** How soon to re-try after a failed forecast fetch, instead of waiting out the full TTL. */
+    private static final long FAILED_FETCH_RETRY_SECONDS = 60;
 
     private final RestClient forecastClient = RestClient.create("https://api.open-meteo.com");
     private final RestClient marineClient = RestClient.create("https://marine-api.open-meteo.com");
@@ -45,8 +47,20 @@ public class WeatherService {
         if (cached != null && Instant.now().getEpochSecond() - cachedAt.getEpochSecond() < CACHE_TTL_SECONDS) {
             return cached;
         }
-        cached = fetch();
-        cachedAt = Instant.now();
+        WeatherSnapshot fresh = fetch();
+        if (!fresh.hourly().isEmpty()) {
+            cached = fresh;
+            cachedAt = Instant.now();
+            return cached;
+        }
+        // Open-Meteo always sends an hourly block, so an empty one means the call failed. Keep
+        // serving the last good snapshot rather than caching the hole: overwriting it blanked the
+        // home page's chart for a full TTL every time upstream so much as blipped. Same reasoning
+        // as radarFrames() below. Retry sooner than the full TTL so it recovers in a minute.
+        if (cached == null) {
+            cached = fresh;
+        }
+        cachedAt = Instant.now().minusSeconds(CACHE_TTL_SECONDS - FAILED_FETCH_RETRY_SECONDS);
         return cached;
     }
 
@@ -136,6 +150,7 @@ public class WeatherService {
                     .retrieve()
                     .body(OpenMeteoResponse.class);
         } catch (RuntimeException e) {
+            log.warn("Failed to fetch forecast from api.open-meteo.com: {}", e.toString());
             return null;
         }
     }
