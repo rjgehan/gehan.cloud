@@ -802,7 +802,6 @@ input[type="range"]::-moz-range-thumb {
     grid-template-columns: 1.6fr 1fr;
     gap: 16px;
     align-items: stretch;
-    min-height: 0;
 }
 
 
@@ -811,9 +810,9 @@ input[type="range"]::-moz-range-thumb {
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    justify-content: center;
+    justify-content: space-between;
     gap: 8px;
-    padding: 16px 24px;
+    padding: 26px 28px;
     border: 1px solid var(--line);
     border-radius: 18px;
     background:
@@ -838,7 +837,7 @@ input[type="range"]::-moz-range-thumb {
 .sun-arc svg {
     display: block;
     width: 100%;
-    max-width: 320px;
+    max-width: 420px;
     aspect-ratio: 2 / 1;
     margin: 0 auto;
     overflow: visible;
@@ -892,7 +891,7 @@ input[type="range"]::-moz-range-thumb {
 }
 
 .hero-wx-temp {
-    font-size: clamp(2.1rem, 4vw, 3rem);
+    font-size: clamp(2.8rem, 5.6vw, 4.1rem);
     font-weight: 780;
     line-height: 1;
 }
@@ -923,7 +922,7 @@ input[type="range"]::-moz-range-thumb {
     display: flex;
     width: 100%;
     justify-content: space-between;
-    max-width: 320px;
+    max-width: 420px;
     margin: -12px auto 0;
     color: var(--muted);
     font-size: 0.78rem;
@@ -3451,9 +3450,13 @@ button.meal-item:hover {
     }
 }
 
-/* The wall iPad is about 980x600, so height is the scarce dimension, not width. Everything on
-   the Home screen gives a little back so the chart still lands above the fold. */
+/* Held over from fitting the 980x600 wall iPad. The Home-screen trims came out again once the
+   dinner tile replaced Tide and the stat stack went back to three cards; what's left has nothing
+   to do with that. */
 @media (max-height: 700px) {
+    /* The Home screen at its normal sizes overflows a 600px-tall page by ~109px and clips the
+       chart - it did so before the dinner tile existed too. These trims are scoped to short
+       screens so a desktop browser still gets the full-size hero. */
     .home-page {
         gap: 8px;
         padding-top: 10px;
@@ -3473,6 +3476,10 @@ button.meal-item:hover {
 
     .hero-weather-card {
         padding: 10px 20px;
+    }
+
+    .hero-wx-temp {
+        font-size: clamp(2.1rem, 4vw, 3rem);
     }
 
     .sun-arc svg {
@@ -3500,8 +3507,8 @@ button.meal-item:hover {
         display: none;
     }
 
-    /* Ten nav items at full size need ~598px in a 544px rail. They don't shrink (flex-shrink: 0),
-       so the overflow put the Theme label underneath the divider that paints after it. */
+    /* Ten nav items at full size need ~598px in a 544px rail, and they don't shrink, so the
+       Theme label ended up painted under the divider that follows it. */
     .side-nav {
         gap: 4px;
         padding: 10px 6px;
