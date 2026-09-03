@@ -802,6 +802,26 @@ input[type="range"]::-moz-range-thumb {
     grid-template-columns: 1.6fr 1fr;
     gap: 16px;
     align-items: stretch;
+    min-height: 0;
+}
+
+/* The dinner tile sits under the hero rather than in the stat stack: a fourth card in that
+   stack made the column tall enough to push the temperature chart off a 600px-tall iPad. */
+.home-bento-main {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-width: 0;
+    min-height: 0;
+}
+
+.home-bento-main .hero-weather-card {
+    flex: 1;
+    min-height: 0;
+}
+
+.home-bento-main > .stat-card {
+    flex: 0 0 auto;
 }
 
 .hero-weather-card {
@@ -809,9 +829,9 @@ input[type="range"]::-moz-range-thumb {
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    justify-content: space-between;
+    justify-content: center;
     gap: 8px;
-    padding: 26px 28px;
+    padding: 16px 24px;
     border: 1px solid var(--line);
     border-radius: 18px;
     background:
@@ -836,7 +856,7 @@ input[type="range"]::-moz-range-thumb {
 .sun-arc svg {
     display: block;
     width: 100%;
-    max-width: 420px;
+    max-width: 320px;
     aspect-ratio: 2 / 1;
     margin: 0 auto;
     overflow: visible;
@@ -890,7 +910,7 @@ input[type="range"]::-moz-range-thumb {
 }
 
 .hero-wx-temp {
-    font-size: clamp(2.8rem, 5.6vw, 4.1rem);
+    font-size: clamp(2.1rem, 4vw, 3rem);
     font-weight: 780;
     line-height: 1;
 }
@@ -921,7 +941,7 @@ input[type="range"]::-moz-range-thumb {
     display: flex;
     width: 100%;
     justify-content: space-between;
-    max-width: 420px;
+    max-width: 320px;
     margin: -12px auto 0;
     color: var(--muted);
     font-size: 0.78rem;
@@ -3446,5 +3466,99 @@ button.meal-item:hover {
         animation-iteration-count: 1 !important;
         scroll-behavior: auto !important;
         transition-duration: 1ms !important;
+    }
+}
+
+/* The wall iPad is about 980x600, so height is the scarce dimension, not width. Everything on
+   the Home screen gives a little back so the chart still lands above the fold. */
+@media (max-height: 700px) {
+    .home-page {
+        gap: 8px;
+        padding-top: 10px;
+    }
+
+    .home-clock {
+        font-size: clamp(1.9rem, 4.6vw, 2.8rem);
+    }
+
+    .home-date {
+        font-size: clamp(1rem, 2.2vw, 1.3rem);
+    }
+
+    .home-bento {
+        gap: 12px;
+    }
+
+    .home-bento-main {
+        gap: 10px;
+    }
+
+    .hero-weather-card {
+        padding: 10px 20px;
+    }
+
+    .sun-arc svg {
+        max-width: 250px;
+    }
+
+    .daylight-labels {
+        max-width: 250px;
+        margin-top: -8px;
+    }
+
+    .stat-stack {
+        gap: 10px;
+    }
+
+    .wx-chart {
+        height: 104px;
+    }
+
+    .wx-chart-card {
+        padding: 6px 18px 4px;
+    }
+
+    .beach-footer {
+        display: none;
+    }
+
+    /* Ten nav items at full size need ~598px in a 544px rail. They don't shrink (flex-shrink: 0),
+       so the overflow put the Theme label underneath the divider that paints after it. */
+    .side-nav {
+        gap: 4px;
+        padding: 10px 6px;
+        width: 88px;
+    }
+
+    .nav-item {
+        min-height: 38px;
+        gap: 2px;
+        padding: 4px 3px;
+    }
+
+    .nav-icon-badge {
+        width: 18px;
+        height: 18px;
+    }
+
+    .nav-label {
+        font-size: 0.6rem;
+    }
+
+    .dashboard-shell {
+        padding-right: 108px;
+    }
+
+    /* In a quarter of a 600px page the stacked launcher needs 46px and gets 32, so its icon
+       spilled out the top of the button. Side by side it fits. */
+    .recipe-launch-btn {
+        flex-direction: row;
+        gap: 8px;
+        font-size: 0.9rem;
+    }
+
+    .recipe-launch-icon svg {
+        width: 20px;
+        height: 20px;
     }
 }
