@@ -805,24 +805,6 @@ input[type="range"]::-moz-range-thumb {
     min-height: 0;
 }
 
-/* The dinner tile sits under the hero rather than in the stat stack: a fourth card in that
-   stack made the column tall enough to push the temperature chart off a 600px-tall iPad. */
-.home-bento-main {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    min-width: 0;
-    min-height: 0;
-}
-
-.home-bento-main .hero-weather-card {
-    flex: 1;
-    min-height: 0;
-}
-
-.home-bento-main > .stat-card {
-    flex: 0 0 auto;
-}
 
 .hero-weather-card {
     position: relative;
@@ -3487,10 +3469,6 @@ button.meal-item:hover {
 
     .home-bento {
         gap: 12px;
-    }
-
-    .home-bento-main {
-        gap: 10px;
     }
 
     .hero-weather-card {

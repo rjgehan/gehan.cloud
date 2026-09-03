@@ -9,6 +9,7 @@ import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 
@@ -32,11 +33,24 @@ public class WeatherService {
     /** How soon to re-try after a failed forecast fetch, instead of waiting out the full TTL. */
     private static final long FAILED_FETCH_RETRY_SECONDS = 60;
 
-    private final RestClient forecastClient = RestClient.create("https://api.open-meteo.com");
-    private final RestClient marineClient = RestClient.create("https://marine-api.open-meteo.com");
-    private final RestClient noaaClient = RestClient.create("https://api.tidesandcurrents.noaa.gov");
-    private final RestClient radarClient = RestClient.create("https://api.librewxr.net");
-    private final RestClient airQualityClient = RestClient.create("https://air-quality-api.open-meteo.com");
+    private final RestClient forecastClient = client("https://api.open-meteo.com");
+    private final RestClient marineClient = client("https://marine-api.open-meteo.com");
+    private final RestClient noaaClient = client("https://api.tidesandcurrents.noaa.gov");
+    private final RestClient radarClient = client("https://api.librewxr.net");
+    private final RestClient airQualityClient = client("https://air-quality-api.open-meteo.com");
+
+    /**
+     * These had no timeouts, so an upstream that hung rather than refused left snapshot() - which
+     * is synchronized - holding the lock for however long the OS took to give up, with every other
+     * request for the weather queued behind it. A blip should fail in seconds and be retried, not
+     * stall the page.
+     */
+    private static RestClient client(String baseUrl) {
+        SimpleClientHttpRequestFactory factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(5000);
+        factory.setReadTimeout(8000);
+        return RestClient.builder().baseUrl(baseUrl).requestFactory(factory).build();
+    }
 
     private volatile WeatherSnapshot cached;
     private volatile Instant cachedAt = Instant.EPOCH;

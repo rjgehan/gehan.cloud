@@ -216,7 +216,6 @@ public class HomeController {
                     </div>
 
                     <div class="home-bento">
-                        <div class="home-bento-main">
                         <div class="hero-weather-card" data-wx-current data-target="weather" role="button" tabindex="0">
                             <div class="sun-arc">
                                 <svg viewBox="0 0 200 100" aria-hidden="true">
@@ -241,16 +240,6 @@ public class HomeController {
                             </div>
                         </div>
 
-                            <div class="stat-card tint-success" data-dinner-tile data-target="kitchen" role="button" tabindex="0" hidden>
-                                <span class="stat-icon-badge">%s</span>
-                                <div class="stat-body">
-                                    <span class="stat-label">Dinner</span>
-                                    <span class="stat-value" data-dinner-name>&mdash;</span>
-                                    <span class="stat-note" data-dinner-note></span>
-                                </div>
-                            </div>
-                        </div>
-
                         <div class="stat-stack">
                             <div class="stat-card stat-card-uv tint-warn" data-target="weather" role="button" tabindex="0">
                                 <div class="stat-card-uv-top">
@@ -261,12 +250,12 @@ public class HomeController {
                                 </div>
                                 <div class="uv-scale mini"><span class="uv-marker" data-wx-uv-marker></span></div>
                             </div>
-                            <div class="stat-card tint-accent" data-tide-tile data-target="weather" role="button" tabindex="0" hidden>
+                            <div class="stat-card tint-success" data-dinner-tile data-target="kitchen" role="button" tabindex="0" hidden>
                                 <span class="stat-icon-badge">%s</span>
                                 <div class="stat-body">
-                                    <span class="stat-label">Tide</span>
-                                    <span class="stat-value" data-tide-next>&mdash;</span>
-                                    <span class="stat-note" data-tide-following></span>
+                                    <span class="stat-label">Dinner</span>
+                                    <span class="stat-value" data-dinner-name>&mdash;</span>
+                                    <span class="stat-note" data-dinner-note></span>
                                 </div>
                             </div>
                             <div class="stat-card tint-sand" data-target="calendar" role="button" tabindex="0">
@@ -301,7 +290,7 @@ public class HomeController {
                         </div>
                     </div>
                 </section>
-                """.formatted(icon("weather", "wx-icon"), icon("kitchen"), icon("weather"), icon("waves"),
+                """.formatted(icon("weather", "wx-icon"), icon("weather"), icon("kitchen"),
                         icon("calendar"), icon("timer"), icon("warn"));
     }
 
