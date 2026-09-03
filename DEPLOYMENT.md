@@ -152,6 +152,44 @@ the physical fixtures happen to be labeled, so which HA light id is warm vs cool
 double-checking by hand (open the fan's popup, bump "Warm Light" up from 0, see which bulb actually
 lights up) rather than assumed correct from the entity name alone.
 
-The Fence Lights tile on the same page is UI-only for now (a local toggle, not backed by any HA
-entity) — there's no fence-light hardware in Home Assistant yet.
+The Fence Lights tile on the same page drives the two gazebo smart sockets
+(`switch.gazebo_socket_1` and `switch.gazebo_socket_2`) as one, through `FenceLightController`.
+Being outdoor plugs they report `unavailable` rather than `off` whenever they're unplugged or out
+of range, so the tile distinguishes the two: it disables itself and says "Sockets unavailable"
+instead of showing a dead socket as merely switched off.
+
+## Kitchen (Meal Planner)
+
+The Kitchen page's **Meals** and **Recipes** tabs read from the Meal Planner's integration API —
+this week's plan, the recipe box, and the grocery list. Opt-in the same way as everything else: with
+`MEALS_URL`/`MEALS_API_KEY` unset, `/api/kitchen/*` answers `503` and the page says "Meal planner
+not connected". The Cook tab (timers, converter) is local and works regardless.
+
+```text
+MEALS_URL=https://meals.gehan.cloud
+MEALS_API_KEY=<the planner's INTEGRATION_API_KEY>
+MEALS_HOUSEHOLD_ID=<optional; defaults to the first household the planner returns>
+```
+
+The key must match `INTEGRATION_API_KEY` on the Meal Planner server, which has to set it too — it
+defaults to off there, since that app is reachable from the public internet.
+
+Two things to keep in mind about that key:
+
+- **It's an operator credential**, not a user's. It can read every household on that server, so the
+  browser never sees it: the page calls `/api/kitchen/*` here and `MealPlannerService` is the only
+  thing that talks to the planner.
+- **The grocery list is the only writable thing** on that API. Adding an item, ticking one off and
+  deleting one all work from the dashboard and broadcast live to anyone with the list open on their
+  phone. Meals and recipes are read-only — there's no endpoint to plan a meal or edit a recipe.
+
+`MEALS_URL` can be the public hostname or `http://<tailscale-name>:8090`; the paths are identical
+either way. Recipe images come back as relative paths and are rewritten to absolute against
+whichever base URL is configured, so the two aren't interchangeable per-request — the browser has
+to be able to reach whatever `MEALS_URL` says. Image URLs need no key and no login; the random UUID
+in the path is all that keeps them unlisted.
+
+The dashboard polls `plan` and `grocery-list` every 30s while the Kitchen page is open, and stops
+when you navigate away. There's no websocket — the planner has one for its own UI, but it's bound
+to a signed-in user's token, not this key.
 

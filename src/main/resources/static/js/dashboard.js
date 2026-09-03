@@ -26,6 +26,9 @@
     let cameraViewerId = null;
     let cameraViewerTimer = null;
     let fanPollTimer = null;
+    let kitchenPollTimer = null;
+    const FAN_POLL_MS = 5000;
+    const KITCHEN_POLL_MS = 30000;
 
     function showPage(name) {
         const pageName = pages.some((page) => page.dataset.page === name) ? name : "home";
@@ -51,6 +54,11 @@
             startFanPolling();
         } else {
             stopFanPolling();
+        }
+        if (pageName === "kitchen") {
+            startKitchenPolling();
+        } else {
+            stopKitchenPolling();
         }
         if (location.hash.slice(1) !== pageName) {
             history.replaceState(null, "", "#" + pageName);
@@ -566,8 +574,6 @@
         }
         fanSliderThrottled[key](value);
     }
-
-    const FAN_POLL_MS = 5000;
 
     function pollLights() {
         loadFanStates();
@@ -1672,31 +1678,353 @@
         renderTimers();
     }, 1000);
 
-    /* ---- Kitchen: food info tiles (grid <-> detail with back button) ---- */
-    const infoGrid = document.querySelector("[data-info-grid]");
-    const infoDetail = document.querySelector("[data-info-detail]");
-    const infoDetailTitle = document.querySelector("[data-info-detail-title]");
-    const infoDetailBody = document.querySelector("[data-info-detail-body]");
-    const infoBackBtn = document.querySelector("[data-info-back]");
+    /* ---- Kitchen: meal plan, grocery list and recipes ----
+       Everything goes through /api/kitchen on this server. The Meal Planner's API key is an
+       operator credential that can read every household there, so it never reaches the browser. */
+    const MEAL_LABELS = { BREAKFAST: "Breakfast", LUNCH: "Lunch", DINNER: "Dinner", SNACK: "Snack" };
+    const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    let recipeSearchTimer = null;
+    let groceryClearArmed = false;
 
-    if (infoGrid && infoDetail && infoDetailTitle && infoDetailBody) {
-        infoGrid.querySelectorAll("[data-info-open]").forEach((tile) => {
-            tile.addEventListener("click", () => {
-                const template = document.querySelector(`[data-info-template="${tile.dataset.infoOpen}"]`);
-                infoDetailTitle.textContent = tile.dataset.infoLabel || "";
-                infoDetailBody.innerHTML = template ? template.innerHTML : "Info coming soon.";
-                infoGrid.hidden = true;
-                infoDetail.hidden = false;
-                infoDetailBody.classList.toggle("is-scrollable", infoDetailBody.scrollHeight > infoDetailBody.clientHeight + 1);
-            });
+    function escapeHtml(value) {
+        return String(value === null || value === undefined ? "" : value).replace(
+            /[&<>"']/g,
+            (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch],
+        );
+    }
+
+    // "2026-09-03" as a *local* date. new Date(iso) reads a bare date as UTC, which lands on the
+    // previous day west of Greenwich - the whole grid would be off by one.
+    function parseIsoDate(iso) {
+        const [y, m, d] = String(iso).split("-").map(Number);
+        return new Date(y, (m || 1) - 1, d || 1);
+    }
+
+    function localIsoDate(date) {
+        const pad = (n) => String(n).padStart(2, "0");
+        return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+    }
+
+    // 503 = the planner isn't configured here; anything else = configured but not answering.
+    async function kitchenGet(path) {
+        try {
+            const res = await fetch(path);
+            if (res.ok) {
+                return { ok: true, data: await res.json() };
+            }
+            return {
+                ok: false,
+                message: res.status === 503
+                    ? "Meal planner not connected."
+                    : "Can't reach the meal planner.",
+            };
+        } catch (err) {
+            return { ok: false, message: "Can't reach the meal planner." };
+        }
+    }
+
+    function kitchenMessage(target, text) {
+        if (target) {
+            target.innerHTML = `<p class="modal-empty">${escapeHtml(text)}</p>`;
+        }
+    }
+
+    /* ---- Meal plan (7-day grid) ---- */
+    async function loadMealPlan() {
+        const target = document.querySelector("[data-meal-week]");
+        if (!target) {
+            return;
+        }
+        const res = await kitchenGet("/api/kitchen/plan");
+        if (!res.ok) {
+            kitchenMessage(target, res.message);
+            return;
+        }
+        renderMealWeek(target, res.data);
+    }
+
+    function renderMealWeek(target, days) {
+        if (!days.length) {
+            kitchenMessage(target, "Nothing planned this week.");
+            return;
+        }
+        const todayIso = localIsoDate(new Date());
+        target.innerHTML = days.map((day) => {
+            const date = parseIsoDate(day.date);
+            // The planner returns empty days too, so the grid always has seven cells.
+            const meals = (day.meals || []).filter((meal) => (meal.items || []).length);
+            const body = meals.length
+                ? meals.map(mealSlotHtml).join("")
+                : `<p class="meal-day-empty">&mdash;</p>`;
+            return `<div class="meal-day${day.date === todayIso ? " is-today" : ""}">
+                    <div class="meal-day-head">
+                        <span class="meal-day-name">${WEEKDAYS[date.getDay()]}</span>
+                        <span class="meal-day-date">${date.getDate()}</span>
+                    </div>
+                    <div class="meal-day-body">${body}</div>
+                </div>`;
+        }).join("");
+    }
+
+    function mealSlotHtml(meal) {
+        return `<div class="meal-slot">
+                <span class="meal-slot-label">${escapeHtml(MEAL_LABELS[meal.mealType] || meal.mealType)}</span>
+                <div class="meal-slot-items">${(meal.items || []).map(mealItemHtml).join("")}</div>
+            </div>`;
+    }
+
+    // A meal can hold several items (a main plus its sides), so each one is its own entry.
+    function mealItemHtml(item) {
+        // Cook time only here - servings is a recipe-detail question, and two facts per item made
+        // every row two lines tall, which pushed the last days of the week off the card.
+        const inner = `<span class="meal-item-name">${escapeHtml(item.name)}</span>`
+            + (item.totalTimeMinutes ? `<span class="meal-item-meta">${item.totalTimeMinutes} min</span>` : "");
+        // Eating out has nothing further to open; a recipe jumps to its page.
+        if (item.kind === "PLACE" || !item.recipeId) {
+            return `<span class="meal-item is-place">${inner}</span>`;
+        }
+        return `<button type="button" class="meal-item" data-recipe-open="${escapeHtml(item.recipeId)}">${inner}</button>`;
+    }
+
+    /* ---- Grocery list (the only writable thing on the planner) ---- */
+    async function loadGrocery() {
+        const target = document.querySelector("[data-grocery-list]");
+        if (!target) {
+            return;
+        }
+        const res = await kitchenGet("/api/kitchen/grocery");
+        if (!res.ok) {
+            kitchenMessage(target, res.message);
+            return;
+        }
+        renderGrocery(target, res.data);
+    }
+
+    function renderGrocery(target, items) {
+        if (!items.length) {
+            kitchenMessage(target, "Nothing on the list.");
+        } else {
+            target.innerHTML = items.map((item) => {
+                const qty = [item.quantity, item.unit].filter(Boolean).join(" ");
+                return `<button type="button" class="grocery-item${item.checked ? " is-checked" : ""}"
+                            data-grocery-id="${escapeHtml(item.id)}">
+                        <span class="grocery-tick"></span>
+                        <span class="grocery-name">${escapeHtml(item.name)}</span>
+                        ${qty ? `<span class="grocery-qty">${escapeHtml(qty)}</span>` : ""}
+                    </button>`;
+            }).join("");
+        }
+        const clearBtn = document.querySelector("[data-grocery-clear]");
+        if (clearBtn && !groceryClearArmed) {
+            const ticked = items.filter((item) => item.checked).length;
+            clearBtn.hidden = ticked === 0;
+            clearBtn.textContent = ticked ? `Clear ${ticked} ticked` : "Clear ticked";
+        }
+    }
+
+    const groceryListEl = document.querySelector("[data-grocery-list]");
+    if (groceryListEl) {
+        groceryListEl.addEventListener("click", (event) => {
+            const btn = event.target.closest("[data-grocery-id]");
+            if (!btn) {
+                return;
+            }
+            // Tick straight away, then confirm with the server; a failure re-reads the truth.
+            const checked = !btn.classList.contains("is-checked");
+            btn.classList.toggle("is-checked", checked);
+            fetch(`/api/kitchen/grocery/${encodeURIComponent(btn.dataset.groceryId)}`, {
+                method: "PATCH",
+                headers: csrfHeaders(),
+                body: JSON.stringify({ checked }),
+            }).then((res) => {
+                if (!res.ok) {
+                    loadGrocery();
+                }
+            }).catch(() => loadGrocery());
         });
     }
 
-    if (infoBackBtn) {
-        infoBackBtn.addEventListener("click", () => {
-            infoDetail.hidden = true;
-            infoGrid.hidden = false;
+    const groceryForm = document.querySelector("[data-grocery-add]");
+    if (groceryForm) {
+        groceryForm.addEventListener("submit", (event) => {
+            event.preventDefault();
+            const input = groceryForm.querySelector("[data-grocery-input]");
+            const name = input ? input.value.trim() : "";
+            if (!name) {
+                return;
+            }
+            input.value = "";
+            // Free text: it doesn't have to match anything the planner already knows about.
+            fetch("/api/kitchen/grocery", {
+                method: "POST",
+                headers: csrfHeaders(),
+                body: JSON.stringify({ name }),
+            }).then(() => loadGrocery()).catch(() => loadGrocery());
         });
+    }
+
+    const groceryClearBtn = document.querySelector("[data-grocery-clear]");
+    if (groceryClearBtn) {
+        groceryClearBtn.addEventListener("click", () => {
+            // Two taps: a stray elbow on a wall display shouldn't wipe the family's ticked items.
+            if (!groceryClearArmed) {
+                groceryClearArmed = true;
+                groceryClearBtn.textContent = "Tap again to clear";
+                groceryClearBtn.classList.add("is-armed");
+                setTimeout(() => {
+                    if (groceryClearArmed) {
+                        groceryClearArmed = false;
+                        groceryClearBtn.classList.remove("is-armed");
+                        loadGrocery();
+                    }
+                }, 4000);
+                return;
+            }
+            groceryClearArmed = false;
+            groceryClearBtn.classList.remove("is-armed");
+            const ids = Array.from(document.querySelectorAll(".grocery-item.is-checked"))
+                .map((el) => el.dataset.groceryId);
+            Promise.all(ids.map((id) => fetch(`/api/kitchen/grocery/${encodeURIComponent(id)}`, {
+                method: "DELETE",
+                headers: csrfHeaders(),
+            }).catch(() => {}))).then(() => loadGrocery());
+        });
+    }
+
+    /* ---- Recipes ---- */
+    async function loadRecipes() {
+        const target = document.querySelector("[data-recipe-list]");
+        if (!target) {
+            return;
+        }
+        const search = document.querySelector("[data-recipe-search]");
+        const query = search ? search.value.trim() : "";
+        const res = await kitchenGet(`/api/kitchen/recipes${query ? `?q=${encodeURIComponent(query)}` : ""}`);
+        if (!res.ok) {
+            kitchenMessage(target, res.message);
+            return;
+        }
+        if (!res.data.length) {
+            kitchenMessage(target, query ? "No recipes match." : "No recipes yet.");
+            return;
+        }
+        target.innerHTML = res.data.map((recipe) => {
+            const meta = recipeMeta(recipe).join(" · ");
+            return `<button type="button" class="recipe-row" data-recipe-open="${escapeHtml(recipe.id)}">
+                    <span class="recipe-row-name">${escapeHtml(recipe.name)}</span>
+                    ${meta ? `<span class="recipe-row-meta">${escapeHtml(meta)}</span>` : ""}
+                </button>`;
+        }).join("");
+    }
+
+    function recipeMeta(recipe) {
+        const meta = [];
+        if (recipe.section) {
+            meta.push(recipe.section.charAt(0) + recipe.section.slice(1).toLowerCase());
+        }
+        if (recipe.totalTimeMinutes) {
+            meta.push(`${recipe.totalTimeMinutes} min`);
+        }
+        if (recipe.servings) {
+            meta.push(`serves ${recipe.servings}`);
+        }
+        return meta;
+    }
+
+    async function openRecipe(recipeId) {
+        if (!recipeId) {
+            return;
+        }
+        showKitchenTab("recipes");
+        const detail = document.querySelector("[data-recipe-detail]");
+        const empty = document.querySelector("[data-recipe-empty]");
+        if (!detail) {
+            return;
+        }
+        detail.hidden = false;
+        if (empty) {
+            empty.hidden = true;
+        }
+        kitchenMessage(detail, "Loading…");
+        document.querySelectorAll("[data-recipe-open]").forEach((el) => {
+            el.classList.toggle("is-selected", el.dataset.recipeOpen === recipeId);
+        });
+        const res = await kitchenGet(`/api/kitchen/recipes/${encodeURIComponent(recipeId)}`);
+        if (!res.ok) {
+            kitchenMessage(detail, res.message);
+            return;
+        }
+        detail.innerHTML = recipeDetailHtml(res.data);
+        detail.scrollTop = 0;
+    }
+
+    function recipeDetailHtml(recipe) {
+        const meta = recipeMeta(recipe);
+        if (recipe.prepTimeMinutes) {
+            meta.push(`${recipe.prepTimeMinutes} min prep`);
+        }
+        // `text` is the whole ingredient line pre-rendered by the planner, fraction glyphs and all;
+        // the separate fields are only worth using if these ever get laid out in columns.
+        const ingredients = (recipe.ingredients || [])
+            .map((ing) => `<li>${escapeHtml(ing.text || [ing.quantity, ing.unit, ing.name].filter(Boolean).join(" "))}</li>`)
+            .join("");
+        const steps = (recipe.steps || []).map((step) => `<li>${escapeHtml(step)}</li>`).join("");
+        return `${recipe.imageUrl ? `<img class="recipe-photo" src="${escapeHtml(recipe.imageUrl)}" alt="">` : ""}
+            <h3 class="recipe-title">${escapeHtml(recipe.name)}</h3>
+            ${recipe.description ? `<p class="recipe-desc">${escapeHtml(recipe.description)}</p>` : ""}
+            ${meta.length ? `<div class="recipe-chips">${meta.map((m) => `<span class="recipe-chip">${escapeHtml(m)}</span>`).join("")}</div>` : ""}
+            ${ingredients ? `<h4>Ingredients</h4><ul class="recipe-ingredients">${ingredients}</ul>` : ""}
+            ${steps ? `<h4>Steps</h4><ol class="recipe-steps">${steps}</ol>` : ""}`;
+    }
+
+    const recipeSearchEl = document.querySelector("[data-recipe-search]");
+    if (recipeSearchEl) {
+        recipeSearchEl.addEventListener("input", () => {
+            clearTimeout(recipeSearchTimer);
+            recipeSearchTimer = setTimeout(loadRecipes, 300);
+        });
+    }
+
+    // Recipe openers sit in both the week grid and the recipe list, and both are re-rendered on
+    // every poll, so this is delegated from the document rather than bound per element.
+    document.addEventListener("click", (event) => {
+        const opener = event.target.closest("[data-recipe-open]");
+        if (opener) {
+            openRecipe(opener.dataset.recipeOpen);
+        }
+    });
+
+    /* ---- Kitchen tabs + polling ---- */
+    function showKitchenTab(name) {
+        document.querySelectorAll("[data-kitchen-view]").forEach((view) => {
+            view.hidden = view.dataset.kitchenView !== name;
+        });
+        document.querySelectorAll("[data-kitchen-tab]").forEach((btn) => {
+            btn.classList.toggle("is-selected", btn.dataset.kitchenTab === name);
+        });
+        if (name === "recipes") {
+            loadRecipes();
+        }
+    }
+
+    document.querySelectorAll("[data-kitchen-tab]").forEach((btn) => {
+        btn.addEventListener("click", () => showKitchenTab(btn.dataset.kitchenTab));
+    });
+
+    function loadKitchen() {
+        loadMealPlan();
+        loadGrocery();
+    }
+
+    function startKitchenPolling() {
+        loadKitchen();
+        clearInterval(kitchenPollTimer);
+        kitchenPollTimer = setInterval(loadKitchen, KITCHEN_POLL_MS);
+    }
+
+    function stopKitchenPolling() {
+        clearInterval(kitchenPollTimer);
+        kitchenPollTimer = null;
     }
 
     /* ---- Kitchen: unit converter ---- */

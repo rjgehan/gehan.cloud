@@ -1,6 +1,6 @@
 services:
   springapp:
-    image: ghcr.io/rjgehan/gehan.cloud:latest
+    image: ghcr.io/rjgehan/beach-dashboard:latest
     container_name: springapp
     restart: unless-stopped
     environment:

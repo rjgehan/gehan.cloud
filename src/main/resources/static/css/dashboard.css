@@ -1277,13 +1277,13 @@ input[type="range"]::-moz-range-thumb {
         grid-template-columns: 1fr;
     }
 
-    .kitchen-layout {
+    .kitchen-meals-layout,
+    .kitchen-recipes-layout,
+    .kitchen-cook-layout {
         grid-template-columns: 1fr;
+        grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
     }
 
-    .kitchen-side {
-        display: none;
-    }
 
     .wx-sidebar {
         flex-direction: row;
@@ -2145,23 +2145,47 @@ input[type="range"]::-moz-range-thumb {
     display: none;
 }
 
-.kitchen-layout {
+/* The kitchen page is three views behind one segmented switch - Meals, Recipes, Cook - because
+   the page fills the viewport without scrolling and none of the three fit alongside another. */
+.kitchen-tabs-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+    flex-shrink: 0;
+}
+
+.kitchen-note {
+    color: var(--muted);
+    font-size: 0.76rem;
+    font-weight: 650;
+}
+
+.kitchen-view {
     display: grid;
-    grid-template-columns: 1fr 1fr;
     grid-template-rows: minmax(0, 1fr);
     gap: 14px;
     flex: 1;
     min-height: 0;
 }
 
-.kitchen-main {
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
+.kitchen-view[hidden] {
+    display: none;
 }
 
-.kitchen-main .card {
-    flex: 1;
+.kitchen-meals-layout {
+    grid-template-columns: minmax(0, 2.7fr) minmax(0, 1fr);
+}
+
+.kitchen-recipes-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
+}
+
+.kitchen-cook-layout {
+    grid-template-columns: 1fr 1fr;
+}
+
+.kitchen-view > .card {
     display: flex;
     flex-direction: column;
     min-height: 0;
@@ -2404,135 +2428,407 @@ input[type="range"]::-moz-range-thumb {
     color: var(--ink);
 }
 
-.kitchen-side {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    min-height: 0;
-}
-
-.kitchen-side .card {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    min-height: 0;
-}
-
-.kitchen-info-card,
 .kitchen-convert-card {
     padding: 14px 18px;
 }
 
-.info-grid {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-    grid-template-rows: repeat(2, minmax(0, 1fr));
-    gap: 8px;
-    flex: 1;
-    min-height: 0;
-}
-
-.info-grid[hidden] {
-    display: none;
-}
-
-.info-tile {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 0;
-    padding: 6px;
-    border-radius: 10px;
-    text-align: center;
-    color: var(--ink);
-    background: var(--surface-strong);
-    border: 1px solid var(--line);
-    box-shadow: none;
-    font-size: 0.75rem;
-    font-weight: 700;
-}
-
-.info-detail {
+/* ---- Meal plan: one row per day ----
+   Seven columns squeezed a dish name into ~70px and broke "Spaghetti" across lines. Rows give
+   the names the full width of the card and let a day with four items spread sideways. */
+.meal-week {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    flex: 1;
-    min-height: 0;
-}
-
-.info-detail[hidden] {
-    display: none;
-}
-
-.info-back {
-    align-self: flex-start;
-    width: 32px;
-    height: 32px;
-}
-
-.info-back svg {
-    width: 16px;
-    height: 16px;
-}
-
-.info-detail h4 {
-    margin: 0;
-    font-size: 0.95rem;
-}
-
-.info-detail-body {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
+    padding: 2px;
+}
+
+.meal-day {
+    display: grid;
+    grid-template-columns: 62px minmax(0, 1fr);
+    align-items: center;
+    gap: 14px;
+    padding: 8px 14px;
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    background: var(--surface-soft);
+}
+
+.meal-day.is-today {
+    border-color: color-mix(in srgb, var(--accent) 55%, transparent);
+    background: var(--accent-soft);
+}
+
+.meal-day-head {
     display: flex;
-    flex-direction: column;
-    gap: 8px;
-    scrollbar-width: none;
-}
-
-.info-detail-body::-webkit-scrollbar {
-    display: none;
-}
-
-.info-detail-body.is-scrollable {
-    mask-image: linear-gradient(to bottom, black calc(100% - 18px), transparent 100%);
-    -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 18px), transparent 100%);
-}
-
-.info-rows {
-    display: flex;
-    flex-direction: column;
-}
-
-.info-row {
-    display: flex;
-    justify-content: space-between;
     align-items: baseline;
-    gap: 10px;
-    padding: 5px 0;
-    border-bottom: 1px solid var(--line);
-    font-size: 0.78rem;
+    gap: 6px;
 }
 
-.info-row:last-child {
-    border-bottom: none;
-}
-
-.info-row span:first-child {
+.meal-day-name {
     color: var(--muted);
-    flex-shrink: 0;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
 }
 
-.info-row span:last-child {
-    text-align: right;
+.meal-day.is-today .meal-day-name {
+    color: var(--accent);
+}
+
+.meal-day-date {
+    color: var(--ink);
+    font-size: 1rem;
     font-weight: 700;
 }
 
-.info-tip {
+.meal-day-body {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 18px;
+    min-width: 0;
+}
+
+.meal-day-empty {
     margin: 0;
-    font-size: 0.72rem;
     color: var(--muted);
-    font-style: italic;
+    font-size: 0.82rem;
+    opacity: 0.6;
+}
+
+.meal-slot {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+}
+
+.meal-slot-label {
+    color: var(--muted);
+    font-size: 0.64rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    flex-shrink: 0;
+}
+
+.meal-slot-items {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.meal-item {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    padding: 6px 10px;
+    border-radius: 9px;
+    border: 1px solid var(--line);
+    background: var(--surface-strong);
+    color: var(--ink);
+    text-align: left;
+    box-shadow: none;
+    font: inherit;
+}
+
+button.meal-item:hover {
+    border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+    transform: none;
+    filter: none;
+}
+
+/* Eating out isn't a recipe, so it doesn't open anything - flagged by the dashed edge. */
+.meal-item.is-place {
+    border-style: dashed;
+    background: transparent;
+}
+
+.meal-item-name {
+    font-size: 0.82rem;
+    font-weight: 650;
+    line-height: 1.25;
+}
+
+.meal-item-meta {
+    color: var(--muted);
+    font-size: 0.68rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+/* ---- Grocery list ---- */
+.grocery-card {
+    padding: 14px 18px;
+}
+
+.grocery-clear {
+    min-height: 30px;
+    padding: 0 12px;
+    font-size: 0.72rem;
+}
+
+.grocery-clear.is-armed {
+    color: var(--danger);
+    border-color: color-mix(in srgb, var(--danger) 50%, transparent);
+    background: var(--danger-bg);
+}
+
+.grocery-add {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 10px;
+    flex-shrink: 0;
+}
+
+.grocery-add input {
+    flex: 1;
+    min-width: 0;
+    min-height: 38px;
+    padding: 0 12px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    background: var(--surface-strong);
+    color: var(--ink);
+    font: inherit;
+    font-size: 0.84rem;
+}
+
+.grocery-add input::placeholder {
+    color: var(--muted);
+}
+
+.grocery-add button {
+    min-height: 38px;
+    padding: 0 16px;
+    font-size: 0.82rem;
+}
+
+.grocery-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 2px;
+}
+
+.grocery-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 9px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    background: var(--surface-soft);
+    color: var(--ink);
+    text-align: left;
+    box-shadow: none;
+    font: inherit;
+    flex-shrink: 0;
+}
+
+.grocery-item:hover {
+    transform: none;
+    filter: none;
+    border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.grocery-tick {
+    width: 18px;
+    height: 18px;
+    border-radius: 6px;
+    border: 1.5px solid var(--line);
+    flex-shrink: 0;
+    position: relative;
+}
+
+.grocery-item.is-checked .grocery-tick {
+    border-color: var(--accent);
+    background: var(--accent);
+}
+
+.grocery-item.is-checked .grocery-tick::after {
+    content: "";
+    position: absolute;
+    left: 5px;
+    top: 1px;
+    width: 5px;
+    height: 10px;
+    border: solid var(--accent-ink);
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+}
+
+.grocery-name {
+    flex: 1;
+    min-width: 0;
+    font-size: 0.86rem;
+    font-weight: 650;
+}
+
+.grocery-item.is-checked .grocery-name {
+    color: var(--muted);
+    text-decoration: line-through;
+}
+
+.grocery-qty {
+    color: var(--muted);
+    font-size: 0.76rem;
+    font-weight: 700;
+    flex-shrink: 0;
+}
+
+/* ---- Recipes ---- */
+.recipe-list-card,
+.recipe-detail-card {
+    padding: 14px 18px;
+}
+
+.recipe-search {
+    min-height: 38px;
+    padding: 0 12px;
+    margin-bottom: 10px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    background: var(--surface-strong);
+    color: var(--ink);
+    font: inherit;
+    font-size: 0.84rem;
+    flex-shrink: 0;
+}
+
+.recipe-search::placeholder {
+    color: var(--muted);
+}
+
+.recipe-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding: 2px;
+}
+
+.recipe-row {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    width: 100%;
+    padding: 9px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    background: var(--surface-soft);
+    color: var(--ink);
+    text-align: left;
+    box-shadow: none;
+    font: inherit;
+    flex-shrink: 0;
+}
+
+.recipe-row:hover {
+    transform: none;
+    filter: none;
+    border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+}
+
+.recipe-row.is-selected {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+}
+
+.recipe-row-name {
+    font-size: 0.88rem;
+    font-weight: 650;
+}
+
+.recipe-row-meta {
+    color: var(--muted);
+    font-size: 0.72rem;
+    font-weight: 600;
+}
+
+.recipe-detail {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.recipe-detail[hidden] {
+    display: none;
+}
+
+.recipe-photo {
+    width: 100%;
+    max-height: 190px;
+    object-fit: cover;
+    border-radius: 12px;
+    margin-bottom: 12px;
+}
+
+.recipe-title {
+    margin: 0 0 4px;
+    font-size: 1.1rem;
+}
+
+.recipe-desc {
+    margin: 0 0 10px;
+    color: var(--muted);
+    font-size: 0.84rem;
+    line-height: 1.4;
+}
+
+.recipe-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 14px;
+}
+
+.recipe-chip {
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: var(--surface-strong);
+    color: var(--muted);
+    font-size: 0.72rem;
+    font-weight: 700;
+}
+
+.recipe-detail h4 {
+    margin: 0 0 8px;
+    font-size: 0.76rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--muted);
+}
+
+.recipe-ingredients,
+.recipe-steps {
+    margin: 0 0 16px;
+    padding-left: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.recipe-ingredients li,
+.recipe-steps li {
+    font-size: 0.86rem;
+    line-height: 1.4;
+}
+
+.recipe-steps li {
+    padding-left: 4px;
 }
 
 .wx-chart.day-detail-chart {

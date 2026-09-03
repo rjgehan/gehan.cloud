@@ -543,102 +543,88 @@ public class HomeController {
     }
 
     /* ======================================================================
-       Kitchen — timers
+       Kitchen — meal plan, grocery list, recipes, timers
        ====================================================================== */
 
     private static String kitchenPage() {
-        String infoTiles = infoTile("beef", "Beef", infoBody(new String[][] {
-                {"Grill (steak, 1&Prime;)", "4-5 min/side"},
-                {"Pan-Sear (steak)", "3-4 min/side"},
-                {"Roast (whole)", "15 min/lb @ 325&deg;F"},
-                {"Ground (browning)", "8-10 min, no pink"},
-                {"Safe Temp", "145&deg;F steaks/roasts &middot; 160&deg;F ground"},
-        }, "Rest meat 5-10 min before slicing."))
-                + infoTile("chicken", "Chicken", infoBody(new String[][] {
-                        {"Grill (breast)", "6-8 min/side"},
-                        {"Bake (breast)", "20-25 min @ 400&deg;F"},
-                        {"Roast (whole)", "20 min/lb @ 375&deg;F"},
-                        {"Pan-Sear (thighs)", "6-7 min/side"},
-                        {"Safe Temp", "165&deg;F everywhere"},
-                }, "Pound breasts to even thickness for even cooking."))
-                + infoTile("pork", "Pork", infoBody(new String[][] {
-                        {"Grill (chop, 1&Prime;)", "4-5 min/side"},
-                        {"Roast (loin)", "20 min/lb @ 350&deg;F"},
-                        {"Pan-Sear (chop)", "3-4 min/side"},
-                        {"Bacon (stovetop)", "4-6 min, medium heat"},
-                        {"Safe Temp", "145&deg;F chops/roasts &middot; 160&deg;F ground"},
-                }, "A slight blush of pink is safe at 145&deg;F."))
-                + infoTile("eggs", "Eggs", infoBody(new String[][] {
-                        {"Soft Boil", "6 min"},
-                        {"Hard Boil", "10-12 min"},
-                        {"Scrambled", "2-3 min, low heat"},
-                        {"Fried (sunny-side)", "2-3 min"},
-                        {"Safe Temp", "160&deg;F, yolk set"},
-                }, "Add eggs to already-boiling water for easier peeling."))
-                + infoTile("pasta", "Pasta", infoBody(new String[][] {
-                        {"Fresh Pasta", "2-3 min"},
-                        {"Dried, Thin", "4-6 min"},
-                        {"Dried, Thick", "9-11 min"},
-                        {"Stuffed (ravioli)", "3-5 min, until floating"},
-                        {"Doneness", "Al dente = firm bite"},
-                }, "Salt the water generously; save a cup of pasta water."))
-                + infoTile("seafood", "Seafood", infoBody(new String[][] {
-                        {"Grill (fillet)", "4-6 min/side"},
-                        {"Bake (fillet)", "12-15 min @ 400&deg;F"},
-                        {"Pan-Sear (fillet)", "3-4 min/side"},
-                        {"Shrimp", "2-3 min, until pink"},
-                        {"Safe Temp", "145&deg;F or flakes easily"},
-                }, "Fish is done when it flakes easily with a fork."));
-
         return """
                 <section class="dashboard-page" data-page="kitchen">
-                    <div class="kitchen-layout">
-                        <div class="kitchen-main">
-                            <div class="card kitchen-timers-card">
-                                <div class="card-head"><span class="icon-badge">%s</span></div>
-                                <div class="timer-setup">
-                                    <div class="timer-wheel-row">
-                                        <div class="timer-wheel-frame"></div>
-                                        %s
-                                        <span class="timer-wheel-unit">hr</span>
-                                        %s
-                                        <span class="timer-wheel-unit">min</span>
-                                        %s
-                                        <span class="timer-wheel-unit">sec</span>
-                                    </div>
-                                    <button type="button" class="timer-start-btn" data-timer-custom-start>Start</button>
+                    <div class="kitchen-tabs-row">
+                        <div class="segmented" data-kitchen-tabs>
+                            <button type="button" class="is-selected" data-kitchen-tab="meals">Meals</button>
+                            <button type="button" data-kitchen-tab="recipes">Recipes</button>
+                            <button type="button" data-kitchen-tab="cook">Cook</button>
+                        </div>
+                        <span class="kitchen-note" data-kitchen-note></span>
+                    </div>
+
+                    <div class="kitchen-view kitchen-meals-layout" data-kitchen-view="meals">
+                        <div class="card meal-week-card">
+                            <div class="card-head">
+                                <h3>This Week</h3>
+                                <span class="icon-badge">%s</span>
+                            </div>
+                            <div class="meal-week" data-meal-week></div>
+                        </div>
+                        <div class="card grocery-card">
+                            <div class="card-head">
+                                <h3>Grocery List</h3>
+                                <button type="button" class="ghost-button grocery-clear" data-grocery-clear hidden>Clear ticked</button>
+                            </div>
+                            <form class="grocery-add" data-grocery-add>
+                                <input type="text" placeholder="Add an item" aria-label="Add grocery item" autocomplete="off" data-grocery-input>
+                                <button type="submit" class="ghost-button">Add</button>
+                            </form>
+                            <div class="grocery-list" data-grocery-list></div>
+                        </div>
+                    </div>
+
+                    <div class="kitchen-view kitchen-recipes-layout" data-kitchen-view="recipes" hidden>
+                        <div class="card recipe-list-card">
+                            <div class="card-head"><h3>Recipes</h3></div>
+                            <input type="search" class="recipe-search" placeholder="Search recipes"
+                                   aria-label="Search recipes" autocomplete="off" data-recipe-search>
+                            <div class="recipe-list" data-recipe-list></div>
+                        </div>
+                        <div class="card recipe-detail-card">
+                            <p class="modal-empty" data-recipe-empty>Pick a recipe to see its ingredients and steps.</p>
+                            <article class="recipe-detail" data-recipe-detail hidden></article>
+                        </div>
+                    </div>
+
+                    <div class="kitchen-view kitchen-cook-layout" data-kitchen-view="cook" hidden>
+                        <div class="card kitchen-timers-card">
+                            <div class="card-head"><span class="icon-badge">%s</span></div>
+                            <div class="timer-setup">
+                                <div class="timer-wheel-row">
+                                    <div class="timer-wheel-frame"></div>
+                                    %s
+                                    <span class="timer-wheel-unit">hr</span>
+                                    %s
+                                    <span class="timer-wheel-unit">min</span>
+                                    %s
+                                    <span class="timer-wheel-unit">sec</span>
                                 </div>
-                                <div class="timer-card-grid" data-timers-list>
-                                    <p class="modal-empty">No timers running. Set one above.</p>
-                                </div>
+                                <button type="button" class="timer-start-btn" data-timer-custom-start>Start</button>
+                            </div>
+                            <div class="timer-card-grid" data-timers-list>
+                                <p class="modal-empty">No timers running. Set one above.</p>
                             </div>
                         </div>
-                        <div class="kitchen-side">
-                            <div class="card kitchen-info-card">
-                                <div class="info-grid" data-info-grid>
-                                    %s
-                                </div>
-                                <div class="info-detail" data-info-detail hidden>
-                                    <button type="button" class="icon-button info-back" data-info-back title="Back">%s</button>
-                                    <h4 data-info-detail-title></h4>
-                                    <div class="info-detail-body" data-info-detail-body></div>
-                                </div>
+                        <div class="card kitchen-convert-card">
+                            <div class="card-head"><h3>Convert</h3></div>
+                            <div class="segmented convert-tabs" data-convert-tabs>
+                                <button type="button" class="is-selected" data-convert-tab="volume">Volume</button>
+                                <button type="button" data-convert-tab="weight">Weight</button>
+                                <button type="button" data-convert-tab="temp">Temp</button>
                             </div>
-                            <div class="card kitchen-convert-card">
-                                <div class="card-head"><h3>Convert</h3></div>
-                                <div class="segmented convert-tabs" data-convert-tabs>
-                                    <button type="button" class="is-selected" data-convert-tab="volume">Volume</button>
-                                    <button type="button" data-convert-tab="weight">Weight</button>
-                                    <button type="button" data-convert-tab="temp">Temp</button>
-                                </div>
-                                %s
-                            </div>
+                            %s
                         </div>
                     </div>
                 </section>
                 """.formatted(
-                        icon("timer"), timerWheel("hours", 24, false), timerWheel("minutes", 60, true), timerWheel("seconds", 60, true),
-                        infoTiles, iconRotated("chevron", -90),
+                        icon("kitchen"), icon("timer"),
+                        timerWheel("hours", 24, false), timerWheel("minutes", 60, true), timerWheel("seconds", 60, true),
                         convertPanel("volume", true,
                                 new String[] {"tsp", "tbsp", "cup", "flOz", "pint", "quart", "gallon", "ml", "l"},
                                 new String[] {"tsp", "tbsp", "cup", "fl oz", "pint", "quart", "gallon", "ml", "L"},
@@ -651,22 +637,6 @@ public class HomeController {
                                         new String[] {"f", "c"},
                                         new String[] {"&deg;F", "&deg;C"},
                                         "f", "c"));
-    }
-
-    private static String infoTile(String key, String label, String body) {
-        return """
-                <button type="button" class="info-tile" data-info-open="%s" data-info-label="%s">%s</button>
-                <template data-info-template="%s">%s</template>
-                """.formatted(key, escapeHtml(label), escapeHtml(label), key, body);
-    }
-
-    private static String infoBody(String[][] rows, String tip) {
-        StringBuilder sb = new StringBuilder("<div class=\"info-rows\">");
-        for (String[] row : rows) {
-            sb.append("<div class=\"info-row\"><span>").append(row[0]).append("</span><span>").append(row[1]).append("</span></div>");
-        }
-        sb.append("</div><p class=\"info-tip\">").append(tip).append("</p>");
-        return sb.toString();
     }
 
     private static String convertPanel(String category, boolean active, String[] values, String[] labels, String fromDefault, String toDefault) {
