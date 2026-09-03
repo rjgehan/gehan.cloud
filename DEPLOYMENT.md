@@ -160,10 +160,14 @@ instead of showing a dead socket as merely switched off.
 
 ## Kitchen (Meal Planner)
 
-The Kitchen page's **Meals** and **Recipes** tabs read from the Meal Planner's integration API —
-this week's plan, the recipe box, and the grocery list. Opt-in the same way as everything else: with
-`MEALS_URL`/`MEALS_API_KEY` unset, `/api/kitchen/*` answers `503` and the page says "Meal planner
-not connected". The Cook tab (timers, converter) is local and works regardless.
+The Kitchen page's week panel and recipe popup, and the whole Grocery page, read from the Meal
+Planner's integration API. Opt-in the same way as everything else: with `MEALS_URL`/`MEALS_API_KEY`
+unset, `/api/kitchen/*` answers `503` and those panels say "Meal planner not connected". The timers
+and the converter are local and work regardless.
+
+Which recipe is pinned to the Kitchen page is per-screen, kept in `localStorage` rather than on the
+planner — the wall display and a phone can each be parked on a different recipe, and neither is
+anyone else's business.
 
 ```text
 MEALS_URL=https://meals.gehan.cloud

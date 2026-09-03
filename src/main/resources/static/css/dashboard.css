@@ -1277,11 +1277,14 @@ input[type="range"]::-moz-range-thumb {
         grid-template-columns: 1fr;
     }
 
-    .kitchen-meals-layout,
-    .kitchen-recipes-layout,
-    .kitchen-cook-layout {
+    .kitchen-grid {
         grid-template-columns: 1fr;
-        grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+        grid-template-rows: repeat(4, minmax(0, 1fr));
+    }
+
+    .recipe-columns {
+        grid-template-columns: 1fr;
+        gap: 16px;
     }
 
 
@@ -2147,48 +2150,23 @@ input[type="range"]::-moz-range-thumb {
 
 /* The kitchen page is three views behind one segmented switch - Meals, Recipes, Cook - because
    the page fills the viewport without scrolling and none of the three fit alongside another. */
-.kitchen-tabs-row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-bottom: 12px;
-    flex-shrink: 0;
-}
-
-.kitchen-note {
-    color: var(--muted);
-    font-size: 0.76rem;
-    font-weight: 650;
-}
-
-.kitchen-view {
+/* The Kitchen page is one 2x2 grid that fills the viewport without scrolling: timers and the
+   week on top, the recipe launcher and the converter beneath. The recipe browser itself lives in
+   a modal, and the grocery list has its own page - both were too big to sit in a quarter. */
+.kitchen-grid {
     display: grid;
-    grid-template-rows: minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr);
+    grid-template-rows: minmax(0, 1.55fr) minmax(0, 1fr);
     gap: 14px;
     flex: 1;
     min-height: 0;
 }
 
-.kitchen-view[hidden] {
-    display: none;
-}
-
-.kitchen-meals-layout {
-    grid-template-columns: minmax(0, 2.7fr) minmax(0, 1fr);
-}
-
-.kitchen-recipes-layout {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr);
-}
-
-.kitchen-cook-layout {
-    grid-template-columns: 1fr 1fr;
-}
-
-.kitchen-view > .card {
+.kitchen-grid > .card {
     display: flex;
     flex-direction: column;
     min-height: 0;
+    padding: 14px 18px;
 }
 
 .kitchen-timers-card {
@@ -2438,7 +2416,7 @@ input[type="range"]::-moz-range-thumb {
 .meal-week {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 5px;
     flex: 1;
     min-height: 0;
     overflow-y: auto;
@@ -2449,8 +2427,8 @@ input[type="range"]::-moz-range-thumb {
     display: grid;
     grid-template-columns: 62px minmax(0, 1fr);
     align-items: center;
-    gap: 14px;
-    padding: 8px 14px;
+    gap: 12px;
+    padding: 5px 12px;
     border-radius: 12px;
     border: 1px solid var(--line);
     background: var(--surface-soft);
@@ -2526,7 +2504,7 @@ input[type="range"]::-moz-range-thumb {
     display: flex;
     align-items: baseline;
     gap: 8px;
-    padding: 6px 10px;
+    padding: 4px 10px;
     border-radius: 9px;
     border: 1px solid var(--line);
     background: var(--surface-strong);
@@ -2563,7 +2541,15 @@ button.meal-item:hover {
 
 /* ---- Grocery list ---- */
 .grocery-card {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
     padding: 14px 18px;
+}
+
+.grocery-add {
+    max-width: 520px;
 }
 
 .grocery-clear {
@@ -2609,9 +2595,10 @@ button.meal-item:hover {
 }
 
 .grocery-list {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    align-content: start;
+    gap: 8px;
     flex: 1;
     min-height: 0;
     overflow-y: auto;
@@ -2685,10 +2672,102 @@ button.meal-item:hover {
     flex-shrink: 0;
 }
 
-/* ---- Recipes ---- */
-.recipe-list-card,
-.recipe-detail-card {
-    padding: 14px 18px;
+/* ---- Recipe launcher (Kitchen page) ---- */
+.recipe-launch-card {
+    gap: 10px;
+}
+
+.recipe-launch-btn {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    width: 100%;
+    min-height: 0;
+    border-radius: 14px;
+    border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+    background: var(--accent-soft);
+    color: var(--ink);
+    font-size: 1rem;
+    font-weight: 700;
+    box-shadow: none;
+}
+
+.recipe-launch-btn:hover {
+    border-color: var(--accent);
+    transform: none;
+    filter: none;
+}
+
+.recipe-launch-icon svg {
+    width: 28px;
+    height: 28px;
+    color: var(--accent);
+}
+
+/* The pin is the "I'm cooking this right now" shortcut - one tap back into the open recipe. */
+.recipe-pin-btn {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    width: 100%;
+    padding: 10px 14px;
+    border-radius: 12px;
+    border: 1px solid var(--line);
+    background: var(--surface-strong);
+    color: var(--ink);
+    text-align: left;
+    box-shadow: none;
+    font: inherit;
+    flex-shrink: 0;
+}
+
+.recipe-pin-btn:hover {
+    border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+    transform: none;
+    filter: none;
+}
+
+.recipe-pin-btn[hidden] {
+    display: none;
+}
+
+.recipe-pin-label {
+    color: var(--muted);
+    font-size: 0.66rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    flex-shrink: 0;
+}
+
+.recipe-pin-name {
+    font-size: 0.88rem;
+    font-weight: 650;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+/* ---- Recipe browser (inside the modal) ---- */
+.recipe-modal {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    flex: 1;
+}
+
+.recipe-modal > div {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    flex: 1;
+}
+
+.recipe-modal > div[hidden] {
+    display: none;
 }
 
 .recipe-search {
@@ -2697,7 +2776,7 @@ button.meal-item:hover {
     margin-bottom: 10px;
     border-radius: 10px;
     border: 1px solid var(--line);
-    background: var(--surface-strong);
+    background: var(--surface-soft);
     color: var(--ink);
     font: inherit;
     font-size: 0.84rem;
@@ -2740,11 +2819,6 @@ button.meal-item:hover {
     border-color: color-mix(in srgb, var(--accent) 40%, transparent);
 }
 
-.recipe-row.is-selected {
-    border-color: var(--accent);
-    background: var(--accent-soft);
-}
-
 .recipe-row-name {
     font-size: 0.88rem;
     font-weight: 650;
@@ -2756,6 +2830,27 @@ button.meal-item:hover {
     font-weight: 600;
 }
 
+.recipe-detail-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 12px;
+    flex-shrink: 0;
+}
+
+.recipe-detail-bar button {
+    min-height: 34px;
+    padding: 0 14px;
+    font-size: 0.78rem;
+}
+
+.recipe-detail-bar .is-pinned {
+    color: var(--accent-ink);
+    background: var(--accent);
+    border-color: var(--accent);
+}
+
 .recipe-detail {
     flex: 1;
     min-height: 0;
@@ -2763,21 +2858,20 @@ button.meal-item:hover {
     padding-right: 4px;
 }
 
-.recipe-detail[hidden] {
-    display: none;
+/* Ingredients beside steps: a recipe you cook from wants both in view at once. */
+.recipe-columns {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr);
+    gap: 24px;
+    align-items: start;
 }
 
 .recipe-photo {
     width: 100%;
-    max-height: 190px;
+    max-height: 200px;
     object-fit: cover;
     border-radius: 12px;
     margin-bottom: 12px;
-}
-
-.recipe-title {
-    margin: 0 0 4px;
-    font-size: 1.1rem;
 }
 
 .recipe-desc {
@@ -2791,14 +2885,14 @@ button.meal-item:hover {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
-    margin-bottom: 14px;
+    margin-bottom: 16px;
 }
 
 .recipe-chip {
     padding: 4px 10px;
     border-radius: 999px;
     border: 1px solid var(--line);
-    background: var(--surface-strong);
+    background: var(--surface-soft);
     color: var(--muted);
     font-size: 0.72rem;
     font-weight: 700;
@@ -2814,21 +2908,17 @@ button.meal-item:hover {
 
 .recipe-ingredients,
 .recipe-steps {
-    margin: 0 0 16px;
+    margin: 0;
     padding-left: 20px;
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 7px;
 }
 
 .recipe-ingredients li,
 .recipe-steps li {
     font-size: 0.86rem;
     line-height: 1.4;
-}
-
-.recipe-steps li {
-    padding-left: 4px;
 }
 
 .wx-chart.day-detail-chart {
@@ -3131,6 +3221,11 @@ button.meal-item:hover {
     box-shadow: 0 24px 60px rgba(0, 8, 20, 0.5);
     padding: 20px;
     gap: 14px;
+}
+
+.modal-card.is-wide {
+    width: min(940px, calc(100vw - 64px));
+    max-height: min(86vh, 760px);
 }
 
 .modal-head {

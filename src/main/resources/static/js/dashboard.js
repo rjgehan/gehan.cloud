@@ -27,6 +27,7 @@
     let cameraViewerTimer = null;
     let fanPollTimer = null;
     let kitchenPollTimer = null;
+    let groceryPollTimer = null;
     const FAN_POLL_MS = 5000;
     const KITCHEN_POLL_MS = 30000;
 
@@ -59,6 +60,11 @@
             startKitchenPolling();
         } else {
             stopKitchenPolling();
+        }
+        if (pageName === "grocery") {
+            startGroceryPolling();
+        } else {
+            stopGroceryPolling();
         }
         if (location.hash.slice(1) !== pageName) {
             history.replaceState(null, "", "#" + pageName);
@@ -1287,15 +1293,19 @@
         return html;
     }
 
-    function openModal(title, bodyHtml) {
+    function openModal(title, bodyHtml, variant) {
         const modal = document.querySelector("[data-modal]");
         const titleEl = document.querySelector("[data-modal-title]");
         const bodyEl = document.querySelector("[data-modal-body]");
+        const card = modal ? modal.querySelector(".modal-card") : null;
         if (!modal || !titleEl || !bodyEl) {
             return;
         }
         titleEl.textContent = title;
         bodyEl.innerHTML = bodyHtml;
+        if (card) {
+            card.classList.toggle("is-wide", variant === "is-wide");
+        }
         modal.hidden = false;
     }
 
@@ -1891,7 +1901,104 @@
         });
     }
 
-    /* ---- Recipes ---- */
+    /* ---- Recipes: a launcher on the Kitchen page, the browser itself in a modal ----
+       The card holds two buttons: "View Recipes", and a pin that jumps straight back to the one
+       you're cooking from. The pin is per-screen (localStorage), not shared - the wall display and
+       a phone can each be parked on a different recipe. */
+    const PINNED_RECIPE_KEY = "kitchen.pinned-recipe";
+
+    function readPinnedRecipe() {
+        try {
+            const raw = localStorage.getItem(PINNED_RECIPE_KEY);
+            return raw ? JSON.parse(raw) : null;
+        } catch (err) {
+            return null; // private window, or site data blocked: just means no pin.
+        }
+    }
+
+    function writePinnedRecipe(pin) {
+        try {
+            if (pin) {
+                localStorage.setItem(PINNED_RECIPE_KEY, JSON.stringify(pin));
+            } else {
+                localStorage.removeItem(PINNED_RECIPE_KEY);
+            }
+        } catch (err) {
+            // Storage unavailable; the pin just won't survive a reload.
+        }
+        renderPinnedRecipe();
+    }
+
+    function renderPinnedRecipe() {
+        const btn = document.querySelector("[data-recipe-pinned]");
+        const nameEl = document.querySelector("[data-recipe-pinned-name]");
+        if (!btn || !nameEl) {
+            return;
+        }
+        const pin = readPinnedRecipe();
+        btn.hidden = !pin;
+        if (pin) {
+            nameEl.textContent = pin.name;
+            btn.dataset.recipeId = pin.id;
+        }
+    }
+
+    function recipeMeta(recipe) {
+        const meta = [];
+        if (recipe.section) {
+            meta.push(recipe.section.charAt(0) + recipe.section.slice(1).toLowerCase());
+        }
+        if (recipe.totalTimeMinutes) {
+            meta.push(`${recipe.totalTimeMinutes} min`);
+        }
+        if (recipe.servings) {
+            meta.push(`serves ${recipe.servings}`);
+        }
+        return meta;
+    }
+
+    function openRecipeModal() {
+        openModal("Recipes", `
+            <div class="recipe-modal">
+                <div data-recipe-browse-view>
+                    <input type="search" class="recipe-search" placeholder="Search recipes"
+                           aria-label="Search recipes" autocomplete="off" data-recipe-search>
+                    <div class="recipe-list" data-recipe-list></div>
+                </div>
+                <div class="recipe-detail-view" data-recipe-detail-view hidden>
+                    <div class="recipe-detail-bar">
+                        <button type="button" class="ghost-button" data-recipe-back>All recipes</button>
+                        <button type="button" class="ghost-button" data-recipe-pin></button>
+                    </div>
+                    <article class="recipe-detail" data-recipe-detail></article>
+                </div>
+            </div>`, "is-wide");
+        const search = document.querySelector("[data-recipe-search]");
+        if (search) {
+            search.addEventListener("input", () => {
+                clearTimeout(recipeSearchTimer);
+                recipeSearchTimer = setTimeout(loadRecipes, 300);
+            });
+        }
+        showRecipeBrowse();
+        loadRecipes();
+    }
+
+    function showRecipeBrowse() {
+        const browse = document.querySelector("[data-recipe-browse-view]");
+        const detail = document.querySelector("[data-recipe-detail-view]");
+        const title = document.querySelector("[data-modal-title]");
+        if (browse) {
+            browse.hidden = false;
+        }
+        if (detail) {
+            detail.hidden = true;
+        }
+        if (title) {
+            title.textContent = "Recipes";
+        }
+    }
+
     async function loadRecipes() {
         const target = document.querySelector("[data-recipe-list]");
         if (!target) {
@@ -1917,45 +2024,47 @@
         }).join("");
     }
 
-    function recipeMeta(recipe) {
-        const meta = [];
-        if (recipe.section) {
-            meta.push(recipe.section.charAt(0) + recipe.section.slice(1).toLowerCase());
-        }
-        if (recipe.totalTimeMinutes) {
-            meta.push(`${recipe.totalTimeMinutes} min`);
-        }
-        if (recipe.servings) {
-            meta.push(`serves ${recipe.servings}`);
-        }
-        return meta;
-    }
-
     async function openRecipe(recipeId) {
         if (!recipeId) {
             return;
         }
-        showKitchenTab("recipes");
+        // Reachable from a planned meal on the Kitchen page as well as from inside the modal, so
+        // the modal is opened first if it isn't already up.
+        if (!document.querySelector("[data-recipe-detail-view]")) {
+            openRecipeModal();
+        }
+        const browse = document.querySelector("[data-recipe-browse-view]");
+        const detailView = document.querySelector("[data-recipe-detail-view]");
         const detail = document.querySelector("[data-recipe-detail]");
-        const empty = document.querySelector("[data-recipe-empty]");
-        if (!detail) {
+        if (!detail || !detailView) {
             return;
         }
-        detail.hidden = false;
-        if (empty) {
-            empty.hidden = true;
+        if (browse) {
+            browse.hidden = true;
         }
+        detailView.hidden = false;
         kitchenMessage(detail, "Loading…");
-        document.querySelectorAll("[data-recipe-open]").forEach((el) => {
-            el.classList.toggle("is-selected", el.dataset.recipeOpen === recipeId);
-        });
         const res = await kitchenGet(`/api/kitchen/recipes/${encodeURIComponent(recipeId)}`);
         if (!res.ok) {
             kitchenMessage(detail, res.message);
             return;
         }
-        detail.innerHTML = recipeDetailHtml(res.data);
+        const recipe = res.data;
+        detail.innerHTML = recipeDetailHtml(recipe);
         detail.scrollTop = 0;
+        const title = document.querySelector("[data-modal-title]");
+        if (title) {
+            title.textContent = recipe.name;
+        }
+        const pinBtn = document.querySelector("[data-recipe-pin]");
+        if (pinBtn) {
+            const pinned = readPinnedRecipe();
+            const isPinned = pinned && pinned.id === recipe.id;
+            pinBtn.textContent = isPinned ? "Unpin" : "Pin to Kitchen";
+            pinBtn.classList.toggle("is-pinned", Boolean(isPinned));
+            pinBtn.dataset.recipeId = recipe.id;
+            pinBtn.dataset.recipeName = recipe.name;
+        }
     }
 
     function recipeDetailHtml(recipe) {
@@ -1970,61 +2079,68 @@
             .join("");
         const steps = (recipe.steps || []).map((step) => `<li>${escapeHtml(step)}</li>`).join("");
         return `${recipe.imageUrl ? `<img class="recipe-photo" src="${escapeHtml(recipe.imageUrl)}" alt="">` : ""}
-            <h3 class="recipe-title">${escapeHtml(recipe.name)}</h3>
             ${recipe.description ? `<p class="recipe-desc">${escapeHtml(recipe.description)}</p>` : ""}
             ${meta.length ? `<div class="recipe-chips">${meta.map((m) => `<span class="recipe-chip">${escapeHtml(m)}</span>`).join("")}</div>` : ""}
-            ${ingredients ? `<h4>Ingredients</h4><ul class="recipe-ingredients">${ingredients}</ul>` : ""}
-            ${steps ? `<h4>Steps</h4><ol class="recipe-steps">${steps}</ol>` : ""}`;
+            <div class="recipe-columns">
+                ${ingredients ? `<div><h4>Ingredients</h4><ul class="recipe-ingredients">${ingredients}</ul></div>` : ""}
+                ${steps ? `<div><h4>Steps</h4><ol class="recipe-steps">${steps}</ol></div>` : ""}
+            </div>`;
     }
 
-    const recipeSearchEl = document.querySelector("[data-recipe-search]");
-    if (recipeSearchEl) {
-        recipeSearchEl.addEventListener("input", () => {
-            clearTimeout(recipeSearchTimer);
-            recipeSearchTimer = setTimeout(loadRecipes, 300);
-        });
-    }
-
-    // Recipe openers sit in both the week grid and the recipe list, and both are re-rendered on
-    // every poll, so this is delegated from the document rather than bound per element.
+    // The launcher, the pin, every recipe row and every planned meal are all re-rendered often, so
+    // these are delegated from the document rather than bound per element.
     document.addEventListener("click", (event) => {
+        if (event.target.closest("[data-recipe-browse]")) {
+            openRecipeModal();
+            return;
+        }
+        const pinnedBtn = event.target.closest("[data-recipe-pinned]");
+        if (pinnedBtn) {
+            openRecipeModal();
+            openRecipe(pinnedBtn.dataset.recipeId);
+            return;
+        }
+        if (event.target.closest("[data-recipe-back]")) {
+            showRecipeBrowse();
+            return;
+        }
+        const pinBtn = event.target.closest("[data-recipe-pin]");
+        if (pinBtn) {
+            const pinned = readPinnedRecipe();
+            const isPinned = pinned && pinned.id === pinBtn.dataset.recipeId;
+            writePinnedRecipe(isPinned ? null : { id: pinBtn.dataset.recipeId, name: pinBtn.dataset.recipeName });
+            pinBtn.textContent = isPinned ? "Pin to Kitchen" : "Unpin";
+            pinBtn.classList.toggle("is-pinned", !isPinned);
+            return;
+        }
         const opener = event.target.closest("[data-recipe-open]");
         if (opener) {
             openRecipe(opener.dataset.recipeOpen);
         }
     });
 
-    /* ---- Kitchen tabs + polling ---- */
-    function showKitchenTab(name) {
-        document.querySelectorAll("[data-kitchen-view]").forEach((view) => {
-            view.hidden = view.dataset.kitchenView !== name;
-        });
-        document.querySelectorAll("[data-kitchen-tab]").forEach((btn) => {
-            btn.classList.toggle("is-selected", btn.dataset.kitchenTab === name);
-        });
-        if (name === "recipes") {
-            loadRecipes();
-        }
-    }
-
-    document.querySelectorAll("[data-kitchen-tab]").forEach((btn) => {
-        btn.addEventListener("click", () => showKitchenTab(btn.dataset.kitchenTab));
-    });
-
-    function loadKitchen() {
-        loadMealPlan();
-        loadGrocery();
-    }
+    renderPinnedRecipe();
 
     function startKitchenPolling() {
-        loadKitchen();
+        loadMealPlan();
         clearInterval(kitchenPollTimer);
-        kitchenPollTimer = setInterval(loadKitchen, KITCHEN_POLL_MS);
+        kitchenPollTimer = setInterval(loadMealPlan, KITCHEN_POLL_MS);
     }
 
     function stopKitchenPolling() {
         clearInterval(kitchenPollTimer);
         kitchenPollTimer = null;
+    }
+
+    function startGroceryPolling() {
+        loadGrocery();
+        clearInterval(groceryPollTimer);
+        groceryPollTimer = setInterval(loadGrocery, KITCHEN_POLL_MS);
+    }
+
+    function stopGroceryPolling() {
+        clearInterval(groceryPollTimer);
+        groceryPollTimer = null;
     }
 
     /* ---- Kitchen: unit converter ---- */

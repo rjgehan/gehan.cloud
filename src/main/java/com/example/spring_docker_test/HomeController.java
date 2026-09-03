@@ -28,6 +28,7 @@ public class HomeController {
                 + mediaPage()
                 + calendarPage()
                 + kitchenPage()
+                + groceryPage()
                 + themePage();
 
         String body = """
@@ -188,6 +189,7 @@ public class HomeController {
                 + navItem("media", "Music", false)
                 + navItem("calendar", "Calendar", false)
                 + navItem("kitchen", "Kitchen", false)
+                + navItem("grocery", "Grocery", false, "basket")
                 + navItem("theme", "Theme", false);
     }
 
@@ -543,58 +545,15 @@ public class HomeController {
     }
 
     /* ======================================================================
-       Kitchen — meal plan, grocery list, recipes, timers
+       Kitchen — timers, the week's meals, a recipe launcher and the converter
        ====================================================================== */
 
     private static String kitchenPage() {
         return """
                 <section class="dashboard-page" data-page="kitchen">
-                    <div class="kitchen-tabs-row">
-                        <div class="segmented" data-kitchen-tabs>
-                            <button type="button" class="is-selected" data-kitchen-tab="meals">Meals</button>
-                            <button type="button" data-kitchen-tab="recipes">Recipes</button>
-                            <button type="button" data-kitchen-tab="cook">Cook</button>
-                        </div>
-                        <span class="kitchen-note" data-kitchen-note></span>
-                    </div>
-
-                    <div class="kitchen-view kitchen-meals-layout" data-kitchen-view="meals">
-                        <div class="card meal-week-card">
-                            <div class="card-head">
-                                <h3>This Week</h3>
-                                <span class="icon-badge">%s</span>
-                            </div>
-                            <div class="meal-week" data-meal-week></div>
-                        </div>
-                        <div class="card grocery-card">
-                            <div class="card-head">
-                                <h3>Grocery List</h3>
-                                <button type="button" class="ghost-button grocery-clear" data-grocery-clear hidden>Clear ticked</button>
-                            </div>
-                            <form class="grocery-add" data-grocery-add>
-                                <input type="text" placeholder="Add an item" aria-label="Add grocery item" autocomplete="off" data-grocery-input>
-                                <button type="submit" class="ghost-button">Add</button>
-                            </form>
-                            <div class="grocery-list" data-grocery-list></div>
-                        </div>
-                    </div>
-
-                    <div class="kitchen-view kitchen-recipes-layout" data-kitchen-view="recipes" hidden>
-                        <div class="card recipe-list-card">
-                            <div class="card-head"><h3>Recipes</h3></div>
-                            <input type="search" class="recipe-search" placeholder="Search recipes"
-                                   aria-label="Search recipes" autocomplete="off" data-recipe-search>
-                            <div class="recipe-list" data-recipe-list></div>
-                        </div>
-                        <div class="card recipe-detail-card">
-                            <p class="modal-empty" data-recipe-empty>Pick a recipe to see its ingredients and steps.</p>
-                            <article class="recipe-detail" data-recipe-detail hidden></article>
-                        </div>
-                    </div>
-
-                    <div class="kitchen-view kitchen-cook-layout" data-kitchen-view="cook" hidden>
+                    <div class="kitchen-grid">
                         <div class="card kitchen-timers-card">
-                            <div class="card-head"><span class="icon-badge">%s</span></div>
+                            <div class="card-head"><h3>Timers</h3><span class="icon-badge">%s</span></div>
                             <div class="timer-setup">
                                 <div class="timer-wheel-row">
                                     <div class="timer-wheel-frame"></div>
@@ -611,6 +570,24 @@ public class HomeController {
                                 <p class="modal-empty">No timers running. Set one above.</p>
                             </div>
                         </div>
+
+                        <div class="card meal-week-card">
+                            <div class="card-head"><h3>This Week</h3><span class="icon-badge">%s</span></div>
+                            <div class="meal-week" data-meal-week></div>
+                        </div>
+
+                        <div class="card recipe-launch-card">
+                            <div class="card-head"><h3>Recipes</h3><span class="icon-badge">%s</span></div>
+                            <button type="button" class="recipe-launch-btn" data-recipe-browse>
+                                <span class="recipe-launch-icon">%s</span>
+                                <span>View Recipes</span>
+                            </button>
+                            <button type="button" class="recipe-pin-btn" data-recipe-pinned hidden>
+                                <span class="recipe-pin-label">Pinned</span>
+                                <span class="recipe-pin-name" data-recipe-pinned-name></span>
+                            </button>
+                        </div>
+
                         <div class="card kitchen-convert-card">
                             <div class="card-head"><h3>Convert</h3></div>
                             <div class="segmented convert-tabs" data-convert-tabs>
@@ -623,8 +600,9 @@ public class HomeController {
                     </div>
                 </section>
                 """.formatted(
-                        icon("kitchen"), icon("timer"),
+                        icon("timer"),
                         timerWheel("hours", 24, false), timerWheel("minutes", 60, true), timerWheel("seconds", 60, true),
+                        icon("calendar"), icon("kitchen"), icon("kitchen"),
                         convertPanel("volume", true,
                                 new String[] {"tsp", "tbsp", "cup", "flOz", "pint", "quart", "gallon", "ml", "l"},
                                 new String[] {"tsp", "tbsp", "cup", "fl oz", "pint", "quart", "gallon", "ml", "L"},
@@ -637,6 +615,32 @@ public class HomeController {
                                         new String[] {"f", "c"},
                                         new String[] {"&deg;F", "&deg;C"},
                                         "f", "c"));
+    }
+
+    /* ======================================================================
+       Grocery — its own page; the list is long enough to want the whole screen
+       ====================================================================== */
+
+    private static String groceryPage() {
+        return """
+                <section class="dashboard-page" data-page="grocery">
+                    <div class="page-head">
+                        <div>
+                            <p class="eyebrow">Kitchen</p>
+                            <h1>Grocery List</h1>
+                        </div>
+                        <button type="button" class="ghost-button grocery-clear" data-grocery-clear hidden>Clear ticked</button>
+                    </div>
+                    <div class="card grocery-card">
+                        <form class="grocery-add" data-grocery-add>
+                            <input type="text" placeholder="Add an item" aria-label="Add grocery item"
+                                   autocomplete="off" data-grocery-input>
+                            <button type="submit" class="ghost-button">Add</button>
+                        </form>
+                        <div class="grocery-list" data-grocery-list></div>
+                    </div>
+                </section>
+                """;
     }
 
     private static String convertPanel(String category, boolean active, String[] values, String[] labels, String fromDefault, String toDefault) {
@@ -741,6 +745,7 @@ public class HomeController {
             Map.entry("security", "<path d=\"M12 3l7 3v5c0 5-3.4 7.8-7 9-3.6-1.2-7-4-7-9V6l7-3Z\"/><path d=\"M9 12l2 2 4-4.5\"/>"),
             Map.entry("media", "<circle cx=\"12\" cy=\"12\" r=\"8.5\"/><path d=\"M10 8.3v7.4l6-3.7Z\"/>"),
             Map.entry("calendar", "<rect x=\"4\" y=\"5\" width=\"16\" height=\"15\" rx=\"2\"/><path d=\"M4 9.5h16M8 3v4M16 3v4\"/>"),
+            Map.entry("basket", "<path d=\"M5 9h14l-1.2 9.2a2 2 0 0 1-2 1.8H8.2a2 2 0 0 1-2-1.8L5 9Z\"/><path d=\"m9 9 3-6 3 6\"/><path d=\"M10 13v3\"/><path d=\"M14 13v3\"/>"),
             Map.entry("kitchen", "<path d=\"M7.5 10.5a4 4 0 1 1 3-6.6 4 4 0 0 1 3 0 4 4 0 1 1 3 6.6\"/><path d=\"M7 10.5h10V17H7Z\"/><path d=\"M7 17h10v3H7Z\"/>"),
             Map.entry("timer", "<circle cx=\"12\" cy=\"13\" r=\"8\"/><path d=\"M12 9v4l3 2\"/><path d=\"M9 2h6M12 2v3\"/>"),
             Map.entry("warn", "<path d=\"M12 3 22 20H2Z\"/><path d=\"M12 9v5M12 17v.01\"/>"),
