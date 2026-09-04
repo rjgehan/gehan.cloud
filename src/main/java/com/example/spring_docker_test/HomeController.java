@@ -60,6 +60,7 @@ public class HomeController {
                         <div class="modal-body" data-modal-body></div>
                     </div>
                 </div>
+                <div class="night-dim" data-night-dim></div>
                 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
                 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
                 <script src="/js/dashboard.js"></script>

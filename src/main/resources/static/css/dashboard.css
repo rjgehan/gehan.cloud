@@ -3450,6 +3450,26 @@ button.meal-item:hover {
     }
 }
 
+/* ---- Night dim ----
+   A sheet over the whole screen between midnight and 6am so the wall display isn't a lantern at
+   3am. Above everything, the modal included. It fades rather than blinks, and while it's up it
+   takes the taps itself - see the pointerdown handler for why. */
+.night-dim {
+    position: fixed;
+    inset: 0;
+    z-index: 9000;
+    background: rgba(0, 0, 0, 0.65);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 500ms ease;
+    -webkit-tap-highlight-color: transparent;
+}
+
+.night-dim.is-on {
+    opacity: 1;
+    pointer-events: auto;
+}
+
 /* The wall iPad is about 980x600 and the Home page overflows it by ~109px at normal sizes,
    clipping the chart - it did so before the dinner tile existed too. What gives here is chosen so
    the two things you actually read from across the room, the sun arc and the temperature, stay

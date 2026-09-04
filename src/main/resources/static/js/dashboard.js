@@ -2383,14 +2383,61 @@
 
     setInterval(refreshCameraSnapshots, CAMERA_POLL_MS);
 
+    /* ---- Night dim: midnight to 6am, lifted by a tap, back after a minute of quiet ---- */
+    const NIGHT_FROM_HOUR = 0;
+    const NIGHT_TO_HOUR = 6;
+    const DIM_AFTER_MS = 60 * 1000;
+    const DIM_CHECK_MS = 5000;
+    let lastActivityAt = Date.now();
+
+    function isNightTime() {
+        const hour = new Date().getHours();
+        // Written to survive someone setting a window that wraps past midnight, e.g. 22 -> 6.
+        return NIGHT_FROM_HOUR <= NIGHT_TO_HOUR
+            ? hour >= NIGHT_FROM_HOUR && hour < NIGHT_TO_HOUR
+            : hour >= NIGHT_FROM_HOUR || hour < NIGHT_TO_HOUR;
+    }
+
+    function setDim(on) {
+        const el = document.querySelector("[data-night-dim]");
+        if (el) {
+            el.classList.toggle("is-on", on);
+        }
+    }
+
+    // Polled rather than scheduled so it also copes with the clock crossing midnight or 6am
+    // while nobody is touching anything.
+    function updateDim() {
+        setDim(isNightTime() && Date.now() - lastActivityAt >= DIM_AFTER_MS);
+    }
+
+    const nightDimEl = document.querySelector("[data-night-dim]");
+    if (nightDimEl) {
+        nightDimEl.addEventListener("pointerdown", (event) => {
+            // The waking tap is swallowed on purpose: at 3am you want the screen back, not the
+            // light switch you happened to land on. The next tap works normally.
+            event.preventDefault();
+            event.stopPropagation();
+            resetIdleTimer();
+            setDim(false);
+        });
+    }
+
+    setInterval(updateDim, DIM_CHECK_MS);
+
     /* ---- Idle timeout: return to Home after 5 minutes with no interaction ---- */
     const IDLE_TIMEOUT_MS = 5 * 60 * 1000;
+    // The Kitchen page stays where it is: you are cooking from it, and a recipe or a running
+    // timer disappearing after five minutes is worse than the screen sitting on the wrong page.
+    const IDLE_STAY_PAGES = new Set(["kitchen"]);
     let idleTimer = null;
 
     function resetIdleTimer() {
+        lastActivityAt = Date.now();
         clearTimeout(idleTimer);
         idleTimer = setTimeout(() => {
-            if (location.hash.slice(1) !== "home") {
+            const current = location.hash.slice(1) || "home";
+            if (current !== "home" && !IDLE_STAY_PAGES.has(current)) {
                 showPage("home");
             }
         }, IDLE_TIMEOUT_MS);
