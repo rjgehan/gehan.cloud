@@ -3450,16 +3450,17 @@ button.meal-item:hover {
     }
 }
 
-/* Held over from fitting the 980x600 wall iPad. The Home-screen trims came out again once the
-   dinner tile replaced Tide and the stat stack went back to three cards; what's left has nothing
-   to do with that. */
+/* The wall iPad is about 980x600 and the Home page overflows it by ~109px at normal sizes,
+   clipping the chart - it did so before the dinner tile existed too. What gives here is chosen so
+   the two things you actually read from across the room, the sun arc and the temperature, stay
+   full size: the stat stack (not the hero) sets the bento row height, so the arc and the readout
+   cost nothing. The height comes out of the page's bottom padding and the stat cards instead,
+   which buys back enough for the chart to keep its full 150px as well. */
 @media (max-height: 700px) {
-    /* The Home screen at its normal sizes overflows a 600px-tall page by ~109px and clips the
-       chart - it did so before the dinner tile existed too. These trims are scoped to short
-       screens so a desktop browser still gets the full-size hero. */
     .home-page {
         gap: 8px;
         padding-top: 10px;
+        padding-bottom: 16px;
     }
 
     .home-clock {
@@ -3474,29 +3475,18 @@ button.meal-item:hover {
         gap: 12px;
     }
 
-    .hero-weather-card {
-        padding: 10px 20px;
-    }
-
-    .hero-wx-temp {
-        font-size: clamp(2.1rem, 4vw, 3rem);
-    }
-
-    .sun-arc svg {
-        max-width: 250px;
-    }
-
-    .daylight-labels {
-        max-width: 250px;
-        margin-top: -8px;
-    }
-
     .stat-stack {
         gap: 10px;
     }
 
-    .wx-chart {
-        height: 104px;
+    /* Slightly tighter stat cards: this is what pays for the full-size arc and chart. */
+    .stat-card {
+        padding: 10px 14px;
+    }
+
+    .stat-icon-badge {
+        width: 36px;
+        height: 36px;
     }
 
     .wx-chart-card {
