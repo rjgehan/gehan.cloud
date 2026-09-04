@@ -1,6 +1,7 @@
 package com.example.spring_docker_test;
 
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 
 import org.springframework.http.HttpStatus;
@@ -28,6 +29,9 @@ public class KitchenController {
 
     private static final int PLAN_DAYS = 7;
 
+    /** The house's clock, matching WeatherService. Neither container sets TZ, so both run UTC. */
+    private static final ZoneId LOCAL_ZONE = ZoneId.of("America/New_York");
+
     private final MealPlannerService meals;
 
     public KitchenController(MealPlannerService meals) {
@@ -36,14 +40,23 @@ public class KitchenController {
 
     @GetMapping("/plan")
     public ResponseEntity<List<MealPlannerService.Day>> plan(@RequestParam(required = false) String start) {
-        LocalDate from = start == null || start.isBlank() ? LocalDate.now() : LocalDate.parse(start);
+        // Same trap: LocalDate.now() here is UTC in the container, so after 8pm the week grid
+        // started on tomorrow and the browser's "today" highlight matched no row in it.
+        LocalDate from = start == null || start.isBlank() ? LocalDate.now(LOCAL_ZONE) : LocalDate.parse(start);
         return respond(meals.plan(from, PLAN_DAYS));
     }
 
-    /** Just tonight - the Home page's dinner tile, which shouldn't pull a whole week for one line. */
+    /**
+     * Just tonight, for the Home page's dinner tile.
+     *
+     * Deliberately not the planner's own /today: that calls LocalDate.now() with no zone, and its
+     * container runs UTC, so from 8pm local it answers with tomorrow. Sending the date explicitly
+     * means the answer depends on this house's clock rather than on either server's timezone.
+     */
     @GetMapping("/today")
     public ResponseEntity<MealPlannerService.Day> today() {
-        return respond(meals.today());
+        List<MealPlannerService.Day> days = meals.plan(LocalDate.now(LOCAL_ZONE), 1);
+        return respond(days == null || days.isEmpty() ? null : days.get(0));
     }
 
     @GetMapping("/grocery")

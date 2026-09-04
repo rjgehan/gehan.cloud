@@ -6,6 +6,10 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: prod
       JAVA_OPTS: "-Xmx512m"
+      # Without this the container runs UTC, which is four hours ahead of the house for most of
+      # the year - anything asking for "today" flips over at 8pm. The code passes the zone
+      # explicitly where it matters; this keeps logs and everything else honest too.
+      TZ: America/New_York
     labels:
       - "com.centurylinklabs.watchtower.enable=true"
     ports:

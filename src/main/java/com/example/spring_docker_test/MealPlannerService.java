@@ -93,24 +93,6 @@ public class MealPlannerService {
         }
     }
 
-    /** Tonight's plan. The planner has its own /today, which uses the server's local date. */
-    public Day today() {
-        String household = householdId();
-        if (household == null) {
-            return null;
-        }
-        try {
-            Day day = client.get()
-                    .uri("/api/integration/households/{id}/today", household)
-                    .retrieve()
-                    .body(Day.class);
-            return day == null ? null : absolutise(day);
-        } catch (Exception e) {
-            log.warn("Failed to fetch today's meals: {}", e.toString());
-            return null;
-        }
-    }
-
     public List<GroceryItem> grocery() {
         String household = householdId();
         if (household == null) {
